@@ -25,6 +25,14 @@ python tcp_agent.py
 
 It listens on `127.0.0.1:8765`, decodes the mod's JSON observations, preserves the GRU state, and returns movement, attack, and aim actions. Add `--checkpoint path\to\policy.pt` after a trained checkpoint exists. The bridge records transitions in memory; converting completed rollouts into PPO batches is the next training integration step.
 
+For the first in-game control test, use scripted actions instead of the untrained policy:
+
+```powershell
+python tcp_agent.py --scripted
+```
+
+The scripted cycle tests right, right+jump, left+jump, down+left, and attack. Stop it with `Ctrl+C` before switching to policy inference.
+
 The reward module uses the requested values:
 
 - `-10` for a completed melee swing with no hit.

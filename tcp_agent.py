@@ -30,7 +30,12 @@ class PendingTransition:
 class MeleeAgentSession:
     """One model session for one Terraria player connection."""
 
-    def __init__(self, checkpoint: str | Path | None = None, device: str = "cpu") -> None:
+    def __init__(
+        self,
+        checkpoint: str | Path | None = None,
+        device: str = "cpu",
+        scripted: bool = False,
+    ) -> None:
         self.spec = CombatObservationSpec()
         self.device = torch.device(device)
         self.policy = MeleeCombatPolicy(self.spec).to(self.device)
@@ -38,11 +43,18 @@ class MeleeAgentSession:
             state = torch.load(checkpoint, map_location=self.device, weights_only=True)
             self.policy.load_state_dict(state)
         self.policy.eval()
+        self.scripted = scripted
+        self.scripted_tick = 0
         self.hidden_state: torch.Tensor | None = None
         self.pending: PendingTransition | None = None
         self.rollout_buffer = RolloutBuffer()
 
     def process_observation(self, observation: dict[str, Any]) -> dict[str, Any]:
+        if self.scripted:
+            action = self._scripted_action()
+            self.scripted_tick += 1
+            return action
+
         grid, player_features, weapon_features, enemy_type_ids = self._encode_observation(observation)
         reward = compute_combat_reward(
             CombatRewardEvent(
@@ -97,6 +109,18 @@ class MeleeAgentSession:
             value=value,
         )
         return self._decode_action(actions[0])
+
+    def _scripted_action(self) -> dict[str, Any]:
+        phase = (self.scripted_tick // 60) % 5
+        if phase == 0:
+            return {"left": False, "right": True, "jump": False, "down": False, "attack": False, "aim_direction": 0}
+        if phase == 1:
+            return {"left": False, "right": True, "jump": True, "down": False, "attack": False, "aim_direction": 0}
+        if phase == 2:
+            return {"left": True, "right": False, "jump": True, "down": False, "attack": False, "aim_direction": 4}
+        if phase == 3:
+            return {"left": True, "right": False, "jump": False, "down": True, "attack": False, "aim_direction": 4}
+        return {"left": False, "right": False, "jump": False, "down": False, "attack": True, "aim_direction": 0}
 
     def build_ppo_batch(self, last_value: float = 0.0):
         return self.rollout_buffer.to_batch(last_value=last_value)
@@ -165,11 +189,12 @@ class AgentRequestHandler(socketserver.StreamRequestHandler):
             self.wfile.flush()
 
 
-def run_server(host: str, port: int, checkpoint: str | None, device: str) -> None:
+def run_server(host: str, port: int, checkpoint: str | None, device: str, scripted: bool) -> None:
     server = socketserver.ThreadingTCPServer((host, port), AgentRequestHandler)
     server.daemon_threads = True
-    server.session = MeleeAgentSession(checkpoint=checkpoint, device=device)  # type: ignore[attr-defined]
-    print(f"Melee agent listening on {host}:{port}", flush=True)
+    server.session = MeleeAgentSession(checkpoint=checkpoint, device=device, scripted=scripted)  # type: ignore[attr-defined]
+    mode = "scripted input test" if scripted else "policy inference"
+    print(f"Melee agent listening on {host}:{port} ({mode})", flush=True)
     try:
         server.serve_forever()
     finally:
@@ -182,5 +207,6 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--checkpoint")
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--scripted", action="store_true")
     arguments = parser.parse_args()
-    run_server(arguments.host, arguments.port, arguments.checkpoint, arguments.device)
+    run_server(arguments.host, arguments.port, arguments.checkpoint, arguments.device, arguments.scripted)
