@@ -206,7 +206,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             item.knockBack,
             item.shoot,
             item.shootSpeed,
-            item.melee ? 1f : 0f,
+            item.DamageType.CountsAsClass(DamageClass.Melee) ? 1f : 0f,
             item.noMelee ? 0f : 1f,
             item.axe,
             item.pick,
