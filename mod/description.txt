@@ -1,0 +1,1 @@
+Streams a local melee-combat observation to a PyTorch agent over TCP and applies its movement and attack actions.

@@ -1,0 +1,152 @@
+using System.Collections.Concurrent;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace TerrariaAgent;
+
+public sealed class AgentAction
+{
+    [JsonPropertyName("left")]
+    public bool Left { get; set; }
+
+    [JsonPropertyName("right")]
+    public bool Right { get; set; }
+
+    [JsonPropertyName("jump")]
+    public bool Jump { get; set; }
+
+    [JsonPropertyName("down")]
+    public bool Down { get; set; }
+
+    [JsonPropertyName("attack")]
+    public bool Attack { get; set; }
+
+    [JsonPropertyName("aim_direction")]
+    public int AimDirection { get; set; }
+}
+
+public sealed class CombatObservation
+{
+    [JsonPropertyName("tick")]
+    public ulong Tick { get; set; }
+
+    [JsonPropertyName("grid_flags")]
+    public int[] GridFlags { get; set; } = [];
+
+    [JsonPropertyName("enemy_type_ids")]
+    public int[] EnemyTypeIds { get; set; } = [];
+
+    [JsonPropertyName("player_features")]
+    public float[] PlayerFeatures { get; set; } = [];
+
+    [JsonPropertyName("weapon_features")]
+    public float[] WeaponFeatures { get; set; } = [];
+
+    [JsonPropertyName("attack_attempted")]
+    public bool AttackAttempted { get; set; }
+
+    [JsonPropertyName("attack_hit")]
+    public bool AttackHit { get; set; }
+
+    [JsonPropertyName("damage_taken")]
+    public float DamageTaken { get; set; }
+
+    [JsonPropertyName("enemies_killed")]
+    public int EnemiesKilled { get; set; }
+
+    [JsonPropertyName("was_alive")]
+    public bool WasAlive { get; set; }
+
+    [JsonPropertyName("is_alive")]
+    public bool IsAlive { get; set; }
+}
+
+internal sealed class AgentTcpClient : IDisposable
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly string host;
+    private readonly int port;
+    private readonly ConcurrentQueue<string> outbound = new();
+    private readonly ConcurrentQueue<AgentAction> inbound = new();
+    private readonly AutoResetEvent workAvailable = new(false);
+    private readonly CancellationTokenSource cancellation = new();
+    private readonly Thread worker;
+
+    public AgentTcpClient(string host, int port)
+    {
+        this.host = host;
+        this.port = port;
+        worker = new Thread(Run) { IsBackground = true, Name = "TerrariaAgentTcp" };
+        worker.Start();
+    }
+
+    public void Send(CombatObservation observation)
+    {
+        outbound.Enqueue(JsonSerializer.Serialize(observation, JsonOptions));
+        workAvailable.Set();
+    }
+
+    public bool TryGetAction(out AgentAction action)
+    {
+        return inbound.TryDequeue(out action!);
+    }
+
+    public void Dispose()
+    {
+        cancellation.Cancel();
+        workAvailable.Set();
+        worker.Join(TimeSpan.FromSeconds(1));
+        workAvailable.Dispose();
+        cancellation.Dispose();
+    }
+
+    private void Run()
+    {
+        while (!cancellation.IsCancellationRequested)
+        {
+            try
+            {
+                using TcpClient tcpClient = new();
+                tcpClient.Connect(host, port);
+                using NetworkStream stream = tcpClient.GetStream();
+                using StreamReader reader = new(stream, Encoding.UTF8, leaveOpen: true);
+                using StreamWriter writer = new(stream, new UTF8Encoding(false), leaveOpen: true)
+                {
+                    AutoFlush = true,
+                    NewLine = "\n",
+                };
+
+                while (!cancellation.IsCancellationRequested && tcpClient.Connected)
+                {
+                    while (outbound.TryDequeue(out string? message))
+                    {
+                        writer.WriteLine(message);
+                    }
+
+                    if (stream.DataAvailable && reader.ReadLine() is string response)
+                    {
+                        AgentAction? action = JsonSerializer.Deserialize<AgentAction>(response, JsonOptions);
+                        if (action is not null)
+                        {
+                            inbound.Enqueue(action);
+                        }
+                    }
+                    else
+                    {
+                        workAvailable.WaitOne(10);
+                    }
+                }
+            }
+            catch (SocketException)
+            {
+                workAvailable.WaitOne(500);
+            }
+            catch (IOException)
+            {
+                workAvailable.WaitOne(500);
+            }
+        }
+    }
+}

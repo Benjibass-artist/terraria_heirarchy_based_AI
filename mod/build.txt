@@ -1,0 +1,5 @@
+displayName = Terraria Agent
+author = Terraria Agent Project
+version = 0.1
+
+# This source is intended to be copied into tModLoader's ModSources directory.
