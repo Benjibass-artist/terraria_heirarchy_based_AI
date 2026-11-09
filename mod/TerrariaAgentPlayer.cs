@@ -75,7 +75,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         Player.controlJump = actionIsFresh && currentAction.Jump;
         Player.controlDown = actionIsFresh && currentAction.Down;
         Player.controlUseItem = shouldAttack;
-        Player.releaseUseItem = !shouldAttack;
+        Player.releaseUseItem = true;
         if (shouldAttack)
         {
             Player.controlUseTile = false;
