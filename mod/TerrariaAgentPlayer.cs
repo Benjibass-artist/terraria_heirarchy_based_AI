@@ -32,6 +32,8 @@ public sealed class TerrariaAgentPlayer : ModPlayer
     private bool attackHitThisSwing;
     private bool attackAttemptedThisTick;
     private bool attackHitThisTick;
+    private bool attackNotReadyThisTick;
+    private bool previousAttackRequest;
     private int enemiesKilledThisTick;
 
     public override void OnEnterWorld()
@@ -69,7 +71,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         }
 
         bool actionIsFresh = actionAge <= MaxActionAge;
-        bool shouldAttack = actionIsFresh && currentAction.Attack && IsCombatItem(Player.HeldItem);
         if (
             actionIsFresh
             && currentAction.HotbarControl
@@ -80,6 +81,17 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         {
             Player.selectedItem = currentAction.HotbarSlot;
         }
+        bool hasCombatItem = IsCombatItem(Player.HeldItem);
+        bool shouldAttack = actionIsFresh && currentAction.Attack && hasCombatItem;
+        bool weaponReady = hasCombatItem
+            && Player.itemTime <= 0
+            && Player.itemAnimation <= 0
+            && !Player.dead;
+        if (shouldAttack && !previousAttackRequest && !weaponReady)
+        {
+            attackNotReadyThisTick = true;
+        }
+        previousAttackRequest = shouldAttack;
         Player.controlLeft = actionIsFresh && currentAction.Left;
         Player.controlRight = actionIsFresh && currentAction.Right;
         Player.controlJump = actionIsFresh && currentAction.Jump;
@@ -144,6 +156,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         previousItemAnimation = Player.itemAnimation;
         attackAttemptedThisTick = false;
         attackHitThisTick = false;
+        attackNotReadyThisTick = false;
         enemiesKilledThisTick = 0;
     }
 
@@ -262,6 +275,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             Hotbar = BuildHotbarObservations(),
             AttackAttempted = attackAttemptedThisTick,
             AttackHit = attackHitThisTick,
+            AttackNotReady = attackNotReadyThisTick,
             DamageTaken = Math.Max(previousLife - Player.statLife, 0),
             EnemiesKilled = enemiesKilledThisTick,
             WasAlive = wasAlive,

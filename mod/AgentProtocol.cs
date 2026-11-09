@@ -78,6 +78,9 @@ public sealed class CombatObservation
     [JsonPropertyName("attack_hit")]
     public bool AttackHit { get; set; }
 
+    [JsonPropertyName("attack_not_ready")]
+    public bool AttackNotReady { get; set; }
+
     [JsonPropertyName("damage_taken")]
     public float DamageTaken { get; set; }
 

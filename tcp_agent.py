@@ -123,6 +123,7 @@ class MeleeAgentSession:
             CombatRewardEvent(
                 attack_attempted=observation.get("attack_attempted", False),
                 attack_hit=observation.get("attack_hit", False),
+                attack_not_ready=observation.get("attack_not_ready", False),
                 damage_taken=float(observation.get("damage_taken", 0.0)),
                 enemies_killed=int(observation.get("enemies_killed", 0)),
                 was_alive=observation.get("was_alive", True),

@@ -46,13 +46,12 @@ def test_model_and_rewards() -> None:
     assert compute_combat_reward(
         CombatRewardEvent(attack_attempted=True, attack_hit=True, damage_taken=4, enemies_killed=1, was_alive=True, is_alive=False)
     ) == 8.0
-    assert compute_combat_reward(
-        CombatRewardEvent(attack_attempted=True, attack_hit=False)
-    ) == -10.0
+    assert compute_combat_reward(CombatRewardEvent(attack_not_ready=True)) == -5.0
+    assert compute_combat_reward(CombatRewardEvent(attack_attempted=True, attack_hit=False)) == -10.0
     assert compute_combat_reward(CombatRewardEvent(was_alive=False, is_alive=True)) == 0.0
 
 
-def test_attack_action_is_masked_during_weapon_cooldown() -> None:
+def test_policy_can_attempt_attack_during_cooldown_for_reward_learning() -> None:
     spec = CombatObservationSpec()
     policy = MeleeCombatPolicy(spec)
     with torch.no_grad():
@@ -64,7 +63,7 @@ def test_attack_action_is_masked_during_weapon_cooldown() -> None:
     cooling_actions, _, _, _ = policy.sample_action(
         grid, player, weapon, deterministic=True
     )
-    assert cooling_actions[0, 4].item() == 0.0
+    assert cooling_actions[0, 4].item() == 1.0
 
     player[0, 13] = 1.0
     ready_actions, _, _, _ = policy.sample_action(
@@ -212,7 +211,7 @@ def test_metrics_resume_uses_previous_cumulative_value() -> None:
 
 if __name__ == "__main__":
     test_model_and_rewards()
-    test_attack_action_is_masked_during_weapon_cooldown()
+    test_policy_can_attempt_attack_during_cooldown_for_reward_learning()
     test_ppo_and_rollout()
     test_tcp_protocol()
     test_append_only_weapon_checkpoints()

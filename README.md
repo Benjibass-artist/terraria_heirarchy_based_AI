@@ -11,7 +11,7 @@ Initial melee-combat foundation for a Terraria AI written in PyTorch.
 - MLP: encodes player and weapon features.
 - GRU: remembers recent movement, enemy, and projectile behavior.
 - Actor head: independently controls left, right, jump, and attack, plus continuous aim, auto-aim choice, and target selection. Hotbar changes are controlled only by the external scheduler.
-- Attack head: masked until Terraria reports the held weapon is ready; the observation includes readiness, remaining item cooldown, and animation fraction.
+- Attack timing: observations include weapon readiness, remaining item cooldown, and animation fraction. A fresh attack request while cooling down is rejected by Terraria and penalized once; holding attack does not repeat the penalty every tick.
 - Critic head: estimates the value of the current state for PPO.
 
 The external `WeaponTrainingScheduler` rotates all ten hotbar slots by training steps. At 60 observations per second, its default 324,000-step interval is approximately 1.5 hours. It wraps from slot 9 back to slot 0. It is orchestration code, not part of the neural network, so normal gameplay can use only one to three weapons without changing the policy.
@@ -45,6 +45,7 @@ The scripted cycle tests right, right+jump, left+jump, down+left, and pulsed att
 The reward module uses the requested values:
 
 - `-10` for a completed melee swing with no hit.
+- `-5` for a fresh attack press while the weapon is still cooling down.
 - `+5` for a completed melee swing that hits.
 - `-damage_taken / 2` for damage received.
 - `+25` per enemy killed.

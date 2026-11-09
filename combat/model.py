@@ -134,16 +134,6 @@ class MeleeCombatPolicy(nn.Module):
 
         recurrent_features, next_hidden = self.recurrent(encoded, hidden_state)
         movement_logits = self.policy_head(recurrent_features)
-        attack_ready = player_features[..., 13] >= 0.5
-        attack_logit = torch.where(
-            attack_ready,
-            movement_logits[..., 4],
-            torch.full_like(movement_logits[..., 4], -30.0),
-        )
-        movement_logits = torch.cat(
-            (movement_logits[..., :4], attack_logit.unsqueeze(-1)),
-            dim=-1,
-        )
         aim_logits = self.aim_head(recurrent_features)
         auto_aim_logits = self.auto_aim_head(recurrent_features)
         target_logits = self.target_head(recurrent_features)
@@ -191,12 +181,6 @@ class MeleeCombatPolicy(nn.Module):
             (movement_logits >= 0).to(dtype=torch.float32)
             if deterministic
             else movement_distribution.sample()
-        )
-        attack_ready = player_features[..., 13] >= 0.5
-        movement_actions[..., 4] = torch.where(
-            attack_ready,
-            movement_actions[..., 4],
-            torch.zeros_like(movement_actions[..., 4]),
         )
         raw_aim_actions = aim_logits if deterministic else aim_distribution.sample()
         aim_actions = torch.tanh(raw_aim_actions)
