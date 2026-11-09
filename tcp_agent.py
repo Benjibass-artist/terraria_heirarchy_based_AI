@@ -90,6 +90,8 @@ class MeleeAgentSession:
         self.policy_lock = threading.Lock()
         self.training_executor = ThreadPoolExecutor(max_workers=1)
         self.training_future: Future[dict[str, float]] | None = None
+        self.training_lock = threading.Lock()
+        self.training_error: Exception | None = None
 
     def process_observation(self, observation: dict[str, Any]) -> dict[str, Any]:
         if self.scripted:
@@ -98,11 +100,23 @@ class MeleeAgentSession:
             return action
 
         if self.training_future is not None and self.training_future.done():
-            metrics = self.training_future.result()
+            try:
+                metrics = self.training_future.result()
+            except Exception as error:
+                self.training_error = error
+                self.training_future = None
+                self.train = False
+                print(f"[training] PPO update failed: {error!r}", flush=True)
+                metrics = None
+            if metrics is None:
+                return self._no_op()
             self.training_future = None
             self.update_count += 1
+            print(f"[training] PPO update {self.update_count}: {metrics}", flush=True)
             if self.update_count % self.checkpoint_updates == 0:
-                self.training_manager.save(metrics)
+                with self.training_lock:
+                    path = self.training_manager.save(metrics)
+                print(f"[training] checkpoint saved: {path}", flush=True)
 
         grid, player_features, weapon_features, enemy_type_ids, enemy_features, weapon_type_id = self._encode_observation(observation)
         reward = compute_combat_reward(
@@ -149,7 +163,9 @@ class MeleeAgentSession:
             else None
         )
         if weapon_changed and self.training_manager.state.global_steps > 1:
-            self.training_manager.save({"reason": "weapon_change"})
+            with self.training_lock:
+                path = self.training_manager.save({"reason": "weapon_change"})
+            print(f"[training] weapon changed to {observation.get('weapon_name', weapon_type_id.item())}; checkpoint saved: {path}", flush=True)
 
         if not is_alive:
             self.hidden_state = None
@@ -239,20 +255,23 @@ class MeleeAgentSession:
             self.training_future = None
             self.update_count += 1
             if self.update_count % self.checkpoint_updates == 0:
-                self.training_manager.save(metrics)
+                with self.training_lock:
+                    self.training_manager.save(metrics)
         if not self.train or self.training_manager.state.active_weapon_id is None:
             self.training_executor.shutdown(wait=True)
             return None
-        path = self.training_manager.save({"reason": "session_stop"})
+        with self.training_lock:
+            path = self.training_manager.save({"reason": "session_stop"})
         self.training_executor.shutdown(wait=True)
         return path
 
     def _train_batch(self, batch) -> dict[str, float]:
-        self.training_manager.trainer.policy.train()
-        metrics = self.training_manager.update(batch)
-        self.training_manager.trainer.policy.eval()
-        with self.policy_lock:
-            self.policy.load_state_dict(self.training_manager.trainer.policy.state_dict())
+        with self.training_lock:
+            self.training_manager.trainer.policy.train()
+            metrics = self.training_manager.update(batch)
+            self.training_manager.trainer.policy.eval()
+            with self.policy_lock:
+                self.policy.load_state_dict(self.training_manager.trainer.policy.state_dict())
         return metrics
 
     def _encode_observation(
