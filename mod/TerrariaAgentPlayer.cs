@@ -335,6 +335,17 @@ public sealed class TerrariaAgentPlayer : ModPlayer
 
     private float[] BuildPlayerFeatures(Point playerTile, Vector2 closestEnemyOffset, bool hasClosestEnemy)
     {
+        Item heldItem = Player.HeldItem;
+        bool canAttack = IsCombatItem(heldItem)
+            && Player.itemTime <= 0
+            && Player.itemAnimation <= 0
+            && !Player.dead;
+        float cooldownFraction = heldItem.useTime > 0
+            ? Math.Clamp(Player.itemTime / (float)heldItem.useTime, 0f, 1f)
+            : 0f;
+        float animationFraction = heldItem.useAnimation > 0
+            ? Math.Clamp(Player.itemAnimation / (float)heldItem.useAnimation, 0f, 1f)
+            : 0f;
         return
         [
             Player.statLife / (float)Math.Max(Player.statLifeMax2, 1),
@@ -350,7 +361,9 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             closestEnemyOffset.Y / (GridHeight * 8f),
             closestEnemyOffset.Length() / (GridWidth * 8f),
             hasClosestEnemy ? 1f : 0f,
-            0f, 0f, 0f,
+            canAttack ? 1f : 0f,
+            cooldownFraction,
+            animationFraction,
         ];
     }
 

@@ -52,6 +52,27 @@ def test_model_and_rewards() -> None:
     assert compute_combat_reward(CombatRewardEvent(was_alive=False, is_alive=True)) == 0.0
 
 
+def test_attack_action_is_masked_during_weapon_cooldown() -> None:
+    spec = CombatObservationSpec()
+    policy = MeleeCombatPolicy(spec)
+    with torch.no_grad():
+        policy.policy_head.bias[4] = 100.0
+    grid = torch.zeros(1, spec.grid_channels, spec.grid_height, spec.grid_width)
+    player = torch.zeros(1, spec.player_features)
+    weapon = torch.zeros(1, spec.weapon_features)
+    player[0, 13] = 0.0
+    cooling_actions, _, _, _ = policy.sample_action(
+        grid, player, weapon, deterministic=True
+    )
+    assert cooling_actions[0, 4].item() == 0.0
+
+    player[0, 13] = 1.0
+    ready_actions, _, _, _ = policy.sample_action(
+        grid, player, weapon, deterministic=True
+    )
+    assert ready_actions[0, 4].item() == 1.0
+
+
 def test_ppo_and_rollout() -> None:
     torch.manual_seed(7)
     spec = CombatObservationSpec()
@@ -191,6 +212,7 @@ def test_metrics_resume_uses_previous_cumulative_value() -> None:
 
 if __name__ == "__main__":
     test_model_and_rewards()
+    test_attack_action_is_masked_during_weapon_cooldown()
     test_ppo_and_rollout()
     test_tcp_protocol()
     test_append_only_weapon_checkpoints()
