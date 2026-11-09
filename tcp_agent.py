@@ -1,7 +1,10 @@
 import argparse
+import copy
 import json
 import math
 import socketserver
+import threading
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -52,7 +55,7 @@ class MeleeAgentSession:
         self.spec = CombatObservationSpec()
         self.device = torch.device(device)
         self.policy = MeleeCombatPolicy(self.spec).to(self.device)
-        self.trainer = PPOTrainer(self.policy)
+        self.trainer = PPOTrainer(copy.deepcopy(self.policy))
         self.training_manager = WeaponTrainingManager(
             self.trainer,
             metrics_path=metrics_path,
@@ -60,7 +63,9 @@ class MeleeAgentSession:
         )
         if checkpoint is not None:
             state = torch.load(checkpoint, map_location=self.device, weights_only=False)
-            self.policy.load_state_dict(state.get("policy_state", state))
+            policy_state = state.get("policy_state", state)
+            self.policy.load_state_dict(policy_state)
+            self.trainer.policy.load_state_dict(policy_state)
             if "optimizer_state" in state:
                 self.trainer.optimizer.load_state_dict(state["optimizer_state"])
             if "weapon_id" in state:
@@ -82,12 +87,22 @@ class MeleeAgentSession:
         self.hidden_state: torch.Tensor | None = None
         self.pending: PendingTransition | None = None
         self.rollout_buffer = RolloutBuffer()
+        self.policy_lock = threading.Lock()
+        self.training_executor = ThreadPoolExecutor(max_workers=1)
+        self.training_future: Future[dict[str, float]] | None = None
 
     def process_observation(self, observation: dict[str, Any]) -> dict[str, Any]:
         if self.scripted:
             action = self._scripted_action()
             self.scripted_tick += 1
             return action
+
+        if self.training_future is not None and self.training_future.done():
+            metrics = self.training_future.result()
+            self.training_future = None
+            self.update_count += 1
+            if self.update_count % self.checkpoint_updates == 0:
+                self.training_manager.save(metrics)
 
         grid, player_features, weapon_features, enemy_type_ids, enemy_features, weapon_type_id = self._encode_observation(observation)
         reward = compute_combat_reward(
@@ -139,7 +154,7 @@ class MeleeAgentSession:
             self.hidden_state = None
             return self._no_op()
 
-        with torch.no_grad():
+        with self.policy_lock, torch.no_grad():
             actions, log_probability, value, self.hidden_state = self.policy.sample_action(
                 grid,
                 player_features,
@@ -152,14 +167,9 @@ class MeleeAgentSession:
 
         if self.train and len(self.rollout_buffer) >= self.rollout_size:
             batch = self.rollout_buffer.to_batch(last_value=value.detach())
-            self.policy.train()
-            metrics = self.training_manager.update(batch)
-            self.policy.eval()
             self.rollout_buffer.clear()
             self.hidden_state = None
-            self.update_count += 1
-            if self.update_count % self.checkpoint_updates == 0:
-                self.training_manager.save(metrics)
+            self.training_future = self.training_executor.submit(self._train_batch, batch)
 
         self.pending = PendingTransition(
             grid=grid,
@@ -223,9 +233,26 @@ class MeleeAgentSession:
         self.rollout_buffer.clear()
 
     def save_training_checkpoint(self) -> Path | None:
+        if self.training_future is not None:
+            metrics = self.training_future.result()
+            self.training_future = None
+            self.update_count += 1
+            if self.update_count % self.checkpoint_updates == 0:
+                self.training_manager.save(metrics)
         if not self.train or self.training_manager.state.active_weapon_id is None:
+            self.training_executor.shutdown(wait=True)
             return None
-        return self.training_manager.save({"reason": "session_stop"})
+        path = self.training_manager.save({"reason": "session_stop"})
+        self.training_executor.shutdown(wait=True)
+        return path
+
+    def _train_batch(self, batch) -> dict[str, float]:
+        self.training_manager.trainer.policy.train()
+        metrics = self.training_manager.update(batch)
+        self.training_manager.trainer.policy.eval()
+        with self.policy_lock:
+            self.policy.load_state_dict(self.training_manager.trainer.policy.state_dict())
+        return metrics
 
     def _encode_observation(
         self, observation: dict[str, Any]
