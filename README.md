@@ -13,7 +13,7 @@ Initial melee-combat foundation for a Terraria AI written in PyTorch.
 - Actor head: independently controls left, right, jump, and attack, plus continuous aim, auto-aim choice, target selection, and hotbar selection.
 - Critic head: estimates the value of the current state for PPO.
 
-The external `WeaponTrainingScheduler` rotates the first nine hotbar slots by training steps. At 60 observations per second, its default 162,000-step interval is approximately 45 minutes. It is orchestration code, not part of the neural network, so normal gameplay can use only one to three weapons without changing the policy.
+The external `WeaponTrainingScheduler` rotates all ten hotbar slots by training steps. At 60 observations per second, its default 162,000-step interval is approximately 45 minutes. It is orchestration code, not part of the neural network, so normal gameplay can use only one to three weapons without changing the policy.
 
 `combat.PPOTrainer` provides the clipped PPO update step. It consumes rollout batches from an environment; the Terraria TCP rollout collector is the next integration layer.
 
