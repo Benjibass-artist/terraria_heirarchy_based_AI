@@ -35,6 +35,7 @@ class MeleeAgentSession:
         checkpoint: str | Path | None = None,
         device: str = "cpu",
         scripted: bool = False,
+        scripted_phase_ticks: int = 300,
     ) -> None:
         self.spec = CombatObservationSpec()
         self.device = torch.device(device)
@@ -44,6 +45,7 @@ class MeleeAgentSession:
             self.policy.load_state_dict(state)
         self.policy.eval()
         self.scripted = scripted
+        self.scripted_phase_ticks = scripted_phase_ticks
         self.scripted_tick = 0
         self.hidden_state: torch.Tensor | None = None
         self.pending: PendingTransition | None = None
@@ -111,16 +113,18 @@ class MeleeAgentSession:
         return self._decode_action(actions[0])
 
     def _scripted_action(self) -> dict[str, Any]:
-        phase = (self.scripted_tick // 60) % 5
+        cycle = self.scripted_tick // self.scripted_phase_ticks
+        phase = cycle % 5
+        aim_direction = cycle % 8
         if phase == 0:
-            return {"left": False, "right": True, "jump": False, "down": False, "attack": False, "aim_direction": 0}
+            return {"left": False, "right": True, "jump": False, "down": False, "attack": False, "aim_direction": aim_direction}
         if phase == 1:
-            return {"left": False, "right": True, "jump": True, "down": False, "attack": False, "aim_direction": 0}
+            return {"left": False, "right": True, "jump": True, "down": False, "attack": False, "aim_direction": aim_direction}
         if phase == 2:
-            return {"left": True, "right": False, "jump": True, "down": False, "attack": False, "aim_direction": 4}
+            return {"left": True, "right": False, "jump": True, "down": False, "attack": False, "aim_direction": aim_direction}
         if phase == 3:
-            return {"left": True, "right": False, "jump": False, "down": True, "attack": False, "aim_direction": 4}
-        return {"left": False, "right": False, "jump": False, "down": False, "attack": True, "aim_direction": 0}
+            return {"left": True, "right": False, "jump": False, "down": True, "attack": False, "aim_direction": aim_direction}
+        return {"left": False, "right": False, "jump": False, "down": False, "attack": True, "aim_direction": aim_direction}
 
     def build_ppo_batch(self, last_value: float = 0.0):
         return self.rollout_buffer.to_batch(last_value=last_value)
@@ -189,10 +193,22 @@ class AgentRequestHandler(socketserver.StreamRequestHandler):
             self.wfile.flush()
 
 
-def run_server(host: str, port: int, checkpoint: str | None, device: str, scripted: bool) -> None:
+def run_server(
+    host: str,
+    port: int,
+    checkpoint: str | None,
+    device: str,
+    scripted: bool,
+    scripted_phase_ticks: int,
+) -> None:
     server = socketserver.ThreadingTCPServer((host, port), AgentRequestHandler)
     server.daemon_threads = True
-    server.session = MeleeAgentSession(checkpoint=checkpoint, device=device, scripted=scripted)  # type: ignore[attr-defined]
+    server.session = MeleeAgentSession(
+        checkpoint=checkpoint,
+        device=device,
+        scripted=scripted,
+        scripted_phase_ticks=scripted_phase_ticks,
+    )  # type: ignore[attr-defined]
     mode = "scripted input test" if scripted else "policy inference"
     print(f"Melee agent listening on {host}:{port} ({mode})", flush=True)
     try:
@@ -208,5 +224,13 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--scripted", action="store_true")
+    parser.add_argument("--scripted-phase-ticks", type=int, default=300)
     arguments = parser.parse_args()
-    run_server(arguments.host, arguments.port, arguments.checkpoint, arguments.device, arguments.scripted)
+    run_server(
+        arguments.host,
+        arguments.port,
+        arguments.checkpoint,
+        arguments.device,
+        arguments.scripted,
+        arguments.scripted_phase_ticks,
+    )
