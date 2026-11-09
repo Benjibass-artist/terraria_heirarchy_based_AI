@@ -247,6 +247,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             EnemyTypeIds = enemyTypeIds,
             PlayerFeatures = BuildPlayerFeatures(playerTile, closestEnemyOffset, hasClosestEnemy),
             WeaponFeatures = BuildWeaponFeatures(),
+            WeaponTypeId = Player.HeldItem.type,
             AttackAttempted = attackAttemptedThisTick,
             AttackHit = attackHitThisTick,
             DamageTaken = Math.Max(previousLife - Player.statLife, 0),

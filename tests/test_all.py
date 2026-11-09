@@ -65,6 +65,7 @@ def test_ppo_and_rollout() -> None:
             "weapon_features": weapon,
             "enemy_type_ids": enemy_types,
             "enemy_features": torch.randn(1, spec.enemy_slots, spec.enemy_features),
+            "weapon_type_id": torch.tensor([7], dtype=torch.long),
             "actions": actions,
             "old_log_probabilities": old_log_probs,
             "old_values": values,

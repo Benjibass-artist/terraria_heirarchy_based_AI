@@ -61,6 +61,7 @@ class RolloutBuffer:
             weapon_features=self._stack("weapon_features"),
             enemy_type_ids=self._stack("enemy_type_ids").to(torch.long),
             enemy_features=self._stack("enemy_features"),
+            weapon_type_id=self._stack("weapon_type_id").to(torch.long),
             actions=self._stack("actions"),
             old_log_probabilities=self._stack("old_log_probabilities").reshape(-1),
             returns=returns,

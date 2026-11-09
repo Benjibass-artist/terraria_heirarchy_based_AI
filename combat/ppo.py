@@ -28,6 +28,7 @@ class PPOBatch:
     old_values: Tensor
     enemy_type_ids: Tensor | None = None
     enemy_features: Tensor | None = None
+    weapon_type_id: Tensor | None = None
 
 
 class PPOTrainer:
@@ -57,6 +58,7 @@ class PPOTrainer:
                 batch.weapon_features,
                 enemy_type_ids=batch.enemy_type_ids,
                 enemy_features=batch.enemy_features,
+                weapon_type_id=batch.weapon_type_id,
             )
             log_probabilities, entropy = self.policy.evaluate_actions(logits, batch.actions)
             probability_ratio = (log_probabilities - batch.old_log_probabilities).exp()

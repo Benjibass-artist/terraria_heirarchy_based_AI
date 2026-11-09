@@ -60,6 +60,9 @@ public sealed class CombatObservation
     [JsonPropertyName("weapon_features")]
     public float[] WeaponFeatures { get; set; } = [];
 
+    [JsonPropertyName("weapon_type_id")]
+    public int WeaponTypeId { get; set; }
+
     [JsonPropertyName("attack_attempted")]
     public bool AttackAttempted { get; set; }
 
