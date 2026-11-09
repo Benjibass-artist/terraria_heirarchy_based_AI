@@ -22,6 +22,7 @@ class PendingTransition:
     player_features: torch.Tensor
     weapon_features: torch.Tensor
     enemy_type_ids: torch.Tensor
+    enemy_features: torch.Tensor
     actions: torch.Tensor
     log_probability: torch.Tensor
     value: torch.Tensor
@@ -57,7 +58,7 @@ class MeleeAgentSession:
             self.scripted_tick += 1
             return action
 
-        grid, player_features, weapon_features, enemy_type_ids = self._encode_observation(observation)
+        grid, player_features, weapon_features, enemy_type_ids, enemy_features = self._encode_observation(observation)
         reward = compute_combat_reward(
             CombatRewardEvent(
                 attack_attempted=observation.get("attack_attempted", False),
@@ -80,6 +81,7 @@ class MeleeAgentSession:
                 "player_features": self.pending.player_features,
                 "weapon_features": self.pending.weapon_features,
                 "enemy_type_ids": self.pending.enemy_type_ids,
+                "enemy_features": self.pending.enemy_features,
                 "actions": self.pending.actions,
                 "old_log_probabilities": self.pending.log_probability,
                 "old_values": self.pending.value,
@@ -99,6 +101,7 @@ class MeleeAgentSession:
                 weapon_features,
                 hidden_state=self.hidden_state,
                 enemy_type_ids=enemy_type_ids,
+                enemy_features=enemy_features,
             )
 
         self.pending = PendingTransition(
@@ -106,6 +109,7 @@ class MeleeAgentSession:
             player_features=player_features,
             weapon_features=weapon_features,
             enemy_type_ids=enemy_type_ids,
+            enemy_features=enemy_features,
             actions=actions,
             log_probability=log_probability,
             value=value,
@@ -135,7 +139,7 @@ class MeleeAgentSession:
 
     def _encode_observation(
         self, observation: dict[str, Any]
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         flags = torch.tensor(
             observation["grid_flags"], dtype=torch.int64, device=self.device
         ).reshape(self.spec.grid_height, self.spec.grid_width)
@@ -156,7 +160,31 @@ class MeleeAgentSession:
         enemy_type_ids = torch.tensor(
             observation["enemy_type_ids"], dtype=torch.long, device=self.device
         ).reshape(1, self.spec.grid_height, self.spec.grid_width)
-        return grid, player_features, weapon_features, enemy_type_ids
+        enemy_features = torch.zeros(
+            1, self.spec.enemy_slots, self.spec.enemy_features,
+            dtype=torch.float32, device=self.device,
+        )
+        enemies = sorted(
+            observation.get("enemies", []),
+            key=lambda enemy: enemy.get("distance", float("inf")),
+        )
+        for index, enemy in enumerate(enemies[:self.spec.enemy_slots]):
+            enemy_features[0, index] = torch.tensor(
+                [
+                    min(max(float(enemy.get("type_id", 0)) / 512.0, 0.0), 1.0),
+                    float(enemy.get("relative_x", 0.0)) / 40.0,
+                    float(enemy.get("relative_y", 0.0)) / 22.5,
+                    float(enemy.get("velocity_x", 0.0)) / 10.0,
+                    float(enemy.get("velocity_y", 0.0)) / 10.0,
+                    float(enemy.get("health_fraction", 0.0)),
+                    float(enemy.get("line_of_sight", 0.0)),
+                    float(enemy.get("threat", 0.0)),
+                    float(enemy.get("distance", 0.0)) / 40.0,
+                ],
+                dtype=torch.float32,
+                device=self.device,
+            )
+        return grid, player_features, weapon_features, enemy_type_ids, enemy_features
 
     @staticmethod
     def _decode_action(action: torch.Tensor) -> dict[str, Any]:
