@@ -85,6 +85,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         {
             aimDirection = targetDirection;
         }
+        SetVirtualCursor(aimDirection);
         if (aimDirection.X != 0f)
         {
             Player.direction = aimDirection.X > 0f ? 1 : -1;
@@ -255,6 +256,26 @@ public sealed class TerrariaAgentPlayer : ModPlayer
 
     private bool TryGetClosestEnemyDirection(out Vector2 direction)
     {
+        if (!TryGetClosestEnemyCenter(out Vector2 closestEnemyCenter))
+        {
+            direction = Vector2.UnitX * Player.direction;
+            return false;
+        }
+
+        direction = closestEnemyCenter - Player.Center;
+        if (direction == Vector2.Zero)
+        {
+            direction = Vector2.UnitX * Player.direction;
+        }
+        else
+        {
+            direction.Normalize();
+        }
+        return true;
+    }
+
+    private bool TryGetClosestEnemyCenter(out Vector2 center)
+    {
         NPC? closestEnemy = null;
         float closestDistanceSquared = float.MaxValue;
         for (int npcIndex = 0; npcIndex < Main.maxNPCs; npcIndex++)
@@ -275,20 +296,19 @@ public sealed class TerrariaAgentPlayer : ModPlayer
 
         if (closestEnemy is null)
         {
-            direction = Vector2.UnitX * Player.direction;
+            center = Player.Center + Vector2.UnitX * Player.direction;
             return false;
         }
 
-        direction = closestEnemy.Center - Player.Center;
-        if (direction == Vector2.Zero)
-        {
-            direction = Vector2.UnitX * Player.direction;
-        }
-        else
-        {
-            direction.Normalize();
-        }
+        center = closestEnemy.Center;
         return true;
+    }
+
+    private void SetVirtualCursor(Vector2 direction)
+    {
+        Vector2 cursorWorldPosition = Player.Center + direction * 1000f;
+        Main.mouseX = (int)(cursorWorldPosition.X - Main.screenPosition.X);
+        Main.mouseY = (int)(cursorWorldPosition.Y - Main.screenPosition.Y);
     }
 
     private float[] BuildPlayerFeatures(Point playerTile, Vector2 closestEnemyOffset, bool hasClosestEnemy)
