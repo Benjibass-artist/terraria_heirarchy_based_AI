@@ -31,7 +31,7 @@ For the first in-game control test, use scripted actions instead of the untraine
 python tcp_agent.py --scripted
 ```
 
-The scripted cycle tests right, right+jump, left+jump, down+left, and attack. Each phase lasts five seconds by default. Use `--scripted-phase-ticks 600` for ten-second phases. The mod also pauses AI controls and stops sending observations while the Terraria window is unfocused.
+The scripted cycle tests right, right+jump, left+jump, down+left, and attack. Each phase lasts five seconds by default. Use `--scripted-phase-ticks 600` for ten-second phases. Scripted actions enable `auto_aim`, which points the sword at the closest chaseable enemy. The observation also includes the closest enemy's normalized direction and distance so the PPO policy can learn the same target relationship. The mod pauses AI controls and stops sending observations while the Terraria window is unfocused.
 
 The reward module uses the requested values:
 

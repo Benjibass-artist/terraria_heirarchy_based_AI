@@ -62,6 +62,10 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         Player.controlDown = currentAction.Down;
         Player.controlUseItem = currentAction.Attack;
         Vector2 aimDirection = AimDirections[Math.Clamp(currentAction.AimDirection, 0, 7)];
+        if (currentAction.AutoAim && TryGetClosestEnemyDirection(out Vector2 targetDirection))
+        {
+            aimDirection = targetDirection;
+        }
         if (aimDirection.X != 0f)
         {
             Player.direction = aimDirection.X > 0f ? 1 : -1;
@@ -118,6 +122,9 @@ public sealed class TerrariaAgentPlayer : ModPlayer
     {
         int[] gridFlags = new int[GridWidth * GridHeight];
         int[] enemyTypeIds = new int[GridWidth * GridHeight];
+        Vector2 closestEnemyOffset = Vector2.Zero;
+        float closestEnemyDistanceSquared = float.MaxValue;
+        bool hasClosestEnemy = false;
         Point playerTile = Player.Center.ToTileCoordinates();
         int left = playerTile.X - GridWidth / 2;
         int top = playerTile.Y - GridHeight / 2;
@@ -171,6 +178,14 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             int index = localY * GridWidth + localX;
             enemyTypeIds[index] = Math.Min(npc.type + 1, 511);
             gridFlags[index] |= 8;
+            Vector2 enemyOffset = npc.Center - Player.Center;
+            float enemyDistanceSquared = enemyOffset.LengthSquared();
+            if (enemyDistanceSquared < closestEnemyDistanceSquared)
+            {
+                closestEnemyOffset = enemyOffset;
+                closestEnemyDistanceSquared = enemyDistanceSquared;
+                hasClosestEnemy = true;
+            }
         }
 
         return new CombatObservation
@@ -178,7 +193,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             Tick = (ulong)Main.GameUpdateCount,
             GridFlags = gridFlags,
             EnemyTypeIds = enemyTypeIds,
-            PlayerFeatures = BuildPlayerFeatures(playerTile),
+            PlayerFeatures = BuildPlayerFeatures(playerTile, closestEnemyOffset, hasClosestEnemy),
             WeaponFeatures = BuildWeaponFeatures(),
             AttackAttempted = attackAttemptedThisTick,
             AttackHit = attackHitThisTick,
@@ -198,7 +213,45 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         }
     }
 
-    private float[] BuildPlayerFeatures(Point playerTile)
+    private bool TryGetClosestEnemyDirection(out Vector2 direction)
+    {
+        NPC? closestEnemy = null;
+        float closestDistanceSquared = float.MaxValue;
+        for (int npcIndex = 0; npcIndex < Main.maxNPCs; npcIndex++)
+        {
+            NPC npc = Main.npc[npcIndex];
+            if (!npc.active || !npc.CanBeChasedBy())
+            {
+                continue;
+            }
+
+            float distanceSquared = Vector2.DistanceSquared(Player.Center, npc.Center);
+            if (distanceSquared < closestDistanceSquared)
+            {
+                closestEnemy = npc;
+                closestDistanceSquared = distanceSquared;
+            }
+        }
+
+        if (closestEnemy is null)
+        {
+            direction = Vector2.UnitX * Player.direction;
+            return false;
+        }
+
+        direction = closestEnemy.Center - Player.Center;
+        if (direction == Vector2.Zero)
+        {
+            direction = Vector2.UnitX * Player.direction;
+        }
+        else
+        {
+            direction.Normalize();
+        }
+        return true;
+    }
+
+    private float[] BuildPlayerFeatures(Point playerTile, Vector2 closestEnemyOffset, bool hasClosestEnemy)
     {
         return
         [
@@ -211,7 +264,11 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             playerTile.X,
             playerTile.Y,
             wasAlive ? 1f : 0f,
-            0f, 0f, 0f, 0f, 0f, 0f, 0f,
+            closestEnemyOffset.X / (GridWidth * 8f),
+            closestEnemyOffset.Y / (GridHeight * 8f),
+            closestEnemyOffset.Length() / (GridWidth * 8f),
+            hasClosestEnemy ? 1f : 0f,
+            0f, 0f, 0f,
         ];
     }
 

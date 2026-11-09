@@ -28,6 +28,9 @@ public sealed class AgentAction
 
     [JsonPropertyName("aim_direction")]
     public int AimDirection { get; set; }
+
+    [JsonPropertyName("auto_aim")]
+    public bool AutoAim { get; set; }
 }
 
 public sealed class CombatObservation

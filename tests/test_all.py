@@ -108,7 +108,7 @@ def test_tcp_protocol() -> None:
     server.shutdown()
     server.server_close()
     thread.join(timeout=1)
-    assert set(action) == {"left", "right", "jump", "down", "attack", "aim_direction"}
+    assert set(action) == {"left", "right", "jump", "down", "attack", "aim_direction", "auto_aim"}
     assert 0 <= action["aim_direction"] < 8
 
 

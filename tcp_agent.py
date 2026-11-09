@@ -117,14 +117,14 @@ class MeleeAgentSession:
         phase = cycle % 5
         aim_direction = cycle % 8
         if phase == 0:
-            return {"left": False, "right": True, "jump": False, "down": False, "attack": False, "aim_direction": aim_direction}
+            return {"left": False, "right": True, "jump": False, "down": False, "attack": False, "aim_direction": aim_direction, "auto_aim": True}
         if phase == 1:
-            return {"left": False, "right": True, "jump": True, "down": False, "attack": False, "aim_direction": aim_direction}
+            return {"left": False, "right": True, "jump": True, "down": False, "attack": False, "aim_direction": aim_direction, "auto_aim": True}
         if phase == 2:
-            return {"left": True, "right": False, "jump": True, "down": False, "attack": False, "aim_direction": aim_direction}
+            return {"left": True, "right": False, "jump": True, "down": False, "attack": False, "aim_direction": aim_direction, "auto_aim": True}
         if phase == 3:
-            return {"left": True, "right": False, "jump": False, "down": True, "attack": False, "aim_direction": aim_direction}
-        return {"left": False, "right": False, "jump": False, "down": False, "attack": True, "aim_direction": aim_direction}
+            return {"left": True, "right": False, "jump": False, "down": True, "attack": False, "aim_direction": aim_direction, "auto_aim": True}
+        return {"left": False, "right": False, "jump": False, "down": False, "attack": True, "aim_direction": aim_direction, "auto_aim": True}
 
     def build_ppo_batch(self, last_value: float = 0.0):
         return self.rollout_buffer.to_batch(last_value=last_value)
@@ -167,6 +167,7 @@ class MeleeAgentSession:
             "down": movement[3],
             "attack": movement[4],
             "aim_direction": int(action[5:].argmax().item()),
+            "auto_aim": False,
         }
 
     @staticmethod
@@ -178,6 +179,7 @@ class MeleeAgentSession:
             "down": False,
             "attack": False,
             "aim_direction": 0,
+            "auto_aim": False,
         }
 
 
