@@ -14,13 +14,17 @@ class CombatObservationSpec:
     enemy_embedding_size: int = 8
     player_features: int = 16
     weapon_features: int = 16
+    weapon_type_count: int = 512
+    weapon_embedding_size: int = 8
     enemy_slots: int = 32
     enemy_features: int = 9
     hidden_size: int = 256
     gru_layers: int = 1
     movement_action_count: int = 5
-    aim_direction_count: int = 8
+    aim_vector_size: int = 2
     auto_aim_action_count: int = 1
+    target_action_count: int = 32
+    hotbar_action_count: int = 10
 
 
 class MeleeCombatPolicy(nn.Module):
@@ -37,6 +41,11 @@ class MeleeCombatPolicy(nn.Module):
         self.enemy_type_embedding = nn.Embedding(
             self.spec.enemy_type_count,
             self.spec.enemy_embedding_size,
+            padding_idx=0,
+        )
+        self.weapon_type_embedding = nn.Embedding(
+            self.spec.weapon_type_count,
+            self.spec.weapon_embedding_size,
             padding_idx=0,
         )
 
@@ -58,7 +67,12 @@ class MeleeCombatPolicy(nn.Module):
         )
 
         self.vector_encoder = nn.Sequential(
-            nn.Linear(self.spec.player_features + self.spec.weapon_features, 128),
+            nn.Linear(
+                self.spec.player_features
+                + self.spec.weapon_features
+                + self.spec.weapon_embedding_size,
+                128,
+            ),
             nn.ReLU(),
             nn.Linear(128, 128),
             nn.ReLU(),
@@ -78,8 +92,11 @@ class MeleeCombatPolicy(nn.Module):
             batch_first=True,
         )
         self.policy_head = nn.Linear(self.spec.hidden_size, self.spec.movement_action_count)
-        self.aim_head = nn.Linear(self.spec.hidden_size, self.spec.aim_direction_count)
+        self.aim_head = nn.Linear(self.spec.hidden_size, self.spec.aim_vector_size)
+        self.aim_log_std = nn.Parameter(torch.full((self.spec.aim_vector_size,), -1.0))
         self.auto_aim_head = nn.Linear(self.spec.hidden_size, self.spec.auto_aim_action_count)
+        self.target_head = nn.Linear(self.spec.hidden_size, self.spec.target_action_count)
+        self.hotbar_head = nn.Linear(self.spec.hidden_size, self.spec.hotbar_action_count)
         self.value_head = nn.Linear(self.spec.hidden_size, 1)
 
     def forward(
@@ -90,14 +107,15 @@ class MeleeCombatPolicy(nn.Module):
         hidden_state: Tensor | None = None,
         enemy_type_ids: Tensor | None = None,
         enemy_features: Tensor | None = None,
+        weapon_type_id: Tensor | None = None,
     ) -> tuple[Tensor, Tensor, Tensor]:
         """Return action logits, state values, and the next GRU state.
 
         Inputs may be one timestep ([batch, ...]) or a sequence
         ([batch, time, ...]).
         """
-        grid, player_features, weapon_features, enemy_type_ids, enemy_features, was_single_step = self._add_time_axis(
-            grid, player_features, weapon_features, enemy_type_ids, enemy_features
+        grid, player_features, weapon_features, enemy_type_ids, enemy_features, weapon_type_id, was_single_step = self._add_time_axis(
+            grid, player_features, weapon_features, enemy_type_ids, enemy_features, weapon_type_id
         )
         batch_size, time_steps = grid.shape[:2]
 
@@ -108,6 +126,8 @@ class MeleeCombatPolicy(nn.Module):
             encoded_grid.reshape(batch_size * time_steps, *encoded_grid.shape[2:])
         )
         vector = torch.cat((player_features, weapon_features), dim=-1)
+        weapon_embedding = self.weapon_type_embedding(weapon_type_id)
+        vector = torch.cat((vector, weapon_embedding), dim=-1)
         vector_features = self.vector_encoder(vector.reshape(batch_size * time_steps, -1))
         enemy_features = enemy_features.reshape(batch_size * time_steps, -1)
         enemy_features = self.enemy_encoder(enemy_features)
@@ -118,7 +138,9 @@ class MeleeCombatPolicy(nn.Module):
         movement_logits = self.policy_head(recurrent_features)
         aim_logits = self.aim_head(recurrent_features)
         auto_aim_logits = self.auto_aim_head(recurrent_features)
-        logits = torch.cat((movement_logits, aim_logits, auto_aim_logits), dim=-1)
+        target_logits = self.target_head(recurrent_features)
+        hotbar_logits = self.hotbar_head(recurrent_features)
+        logits = torch.cat((movement_logits, aim_logits, auto_aim_logits, target_logits, hotbar_logits), dim=-1)
         values = self.value_head(recurrent_features).squeeze(-1)
 
         if was_single_step:
@@ -133,6 +155,7 @@ class MeleeCombatPolicy(nn.Module):
         hidden_state: Tensor | None = None,
         enemy_type_ids: Tensor | None = None,
         enemy_features: Tensor | None = None,
+        weapon_type_id: Tensor | None = None,
         deterministic: bool = False,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         logits, values, next_hidden = self(
@@ -142,34 +165,49 @@ class MeleeCombatPolicy(nn.Module):
             hidden_state,
             enemy_type_ids,
             enemy_features,
+            weapon_type_id,
         )
         movement_logits = logits[..., :self.spec.movement_action_count]
         aim_start = self.spec.movement_action_count
-        aim_end = aim_start + self.spec.aim_direction_count
+        aim_end = aim_start + self.spec.aim_vector_size
         aim_logits = logits[..., aim_start:aim_end]
         auto_aim_logits = logits[..., aim_end:]
+        auto_aim_end = aim_end + self.spec.auto_aim_action_count
+        auto_aim_logits = logits[..., aim_end:auto_aim_end]
+        target_end = auto_aim_end + self.spec.target_action_count
+        target_logits = logits[..., auto_aim_end:target_end]
+        hotbar_logits = logits[..., target_end:]
         movement_distribution = Bernoulli(logits=movement_logits)
-        aim_distribution = torch.distributions.Categorical(logits=aim_logits)
+        aim_distribution = torch.distributions.Normal(aim_logits, self.aim_log_std.exp())
         auto_aim_distribution = Bernoulli(logits=auto_aim_logits)
+        target_distribution = torch.distributions.Categorical(logits=target_logits)
+        hotbar_distribution = torch.distributions.Categorical(logits=hotbar_logits)
         movement_actions = (
             (movement_logits >= 0).to(dtype=torch.float32)
             if deterministic
             else movement_distribution.sample()
         )
-        aim_index = aim_logits.argmax(dim=-1) if deterministic else aim_distribution.sample()
-        aim_actions = torch.nn.functional.one_hot(
-            aim_index, num_classes=self.spec.aim_direction_count
-        ).to(dtype=torch.float32)
+        aim_actions = aim_logits if deterministic else aim_distribution.sample()
         auto_aim_actions = (
             (auto_aim_logits >= 0).to(dtype=torch.float32)
             if deterministic
             else auto_aim_distribution.sample()
         )
-        actions = torch.cat((movement_actions, aim_actions, auto_aim_actions), dim=-1)
+        target_index = target_logits.argmax(dim=-1) if deterministic else target_distribution.sample()
+        target_actions = torch.nn.functional.one_hot(
+            target_index, num_classes=self.spec.target_action_count
+        ).to(dtype=torch.float32)
+        hotbar_index = hotbar_logits.argmax(dim=-1) if deterministic else hotbar_distribution.sample()
+        hotbar_actions = torch.nn.functional.one_hot(
+            hotbar_index, num_classes=self.spec.hotbar_action_count
+        ).to(dtype=torch.float32)
+        actions = torch.cat((movement_actions, aim_actions, auto_aim_actions, target_actions, hotbar_actions), dim=-1)
         log_probabilities = (
             movement_distribution.log_prob(movement_actions).sum(dim=-1)
-            + aim_distribution.log_prob(aim_index)
+            + aim_distribution.log_prob(aim_actions).sum(dim=-1)
             + auto_aim_distribution.log_prob(auto_aim_actions).sum(dim=-1)
+            + target_distribution.log_prob(target_index)
+            + hotbar_distribution.log_prob(hotbar_index)
         )
         return actions, log_probabilities, values, next_hidden
 
@@ -177,25 +215,36 @@ class MeleeCombatPolicy(nn.Module):
         """Return PPO log probabilities and entropy for sampled actions."""
         movement_logits = logits[..., :self.spec.movement_action_count]
         aim_start = self.spec.movement_action_count
-        aim_end = aim_start + self.spec.aim_direction_count
+        aim_end = aim_start + self.spec.aim_vector_size
         aim_logits = logits[..., aim_start:aim_end]
-        auto_aim_logits = logits[..., aim_end:]
+        auto_aim_end = aim_end + self.spec.auto_aim_action_count
+        auto_aim_logits = logits[..., aim_end:auto_aim_end]
+        target_end = auto_aim_end + self.spec.target_action_count
+        target_logits = logits[..., auto_aim_end:target_end]
+        hotbar_logits = logits[..., target_end:]
         movement_actions = actions[..., :self.spec.movement_action_count]
         aim_actions = actions[..., aim_start:aim_end]
-        auto_aim_actions = actions[..., aim_end:]
+        auto_aim_actions = actions[..., aim_end:auto_aim_end]
+        target_actions = actions[..., auto_aim_end:target_end]
+        hotbar_actions = actions[..., target_end:]
         movement_distribution = Bernoulli(logits=movement_logits)
-        aim_distribution = torch.distributions.Categorical(logits=aim_logits)
+        aim_distribution = torch.distributions.Normal(aim_logits, self.aim_log_std.exp())
         auto_aim_distribution = Bernoulli(logits=auto_aim_logits)
-        aim_index = aim_actions.argmax(dim=-1)
+        target_distribution = torch.distributions.Categorical(logits=target_logits)
+        hotbar_distribution = torch.distributions.Categorical(logits=hotbar_logits)
         log_probabilities = (
             movement_distribution.log_prob(movement_actions).sum(dim=-1)
-            + aim_distribution.log_prob(aim_index)
+            + aim_distribution.log_prob(aim_actions).sum(dim=-1)
             + auto_aim_distribution.log_prob(auto_aim_actions).sum(dim=-1)
+            + target_distribution.log_prob(target_actions.argmax(dim=-1))
+            + hotbar_distribution.log_prob(hotbar_actions.argmax(dim=-1))
         )
         entropy = (
             movement_distribution.entropy().sum(dim=-1)
-            + aim_distribution.entropy()
+            + aim_distribution.entropy().sum(dim=-1)
             + auto_aim_distribution.entropy().sum(dim=-1)
+            + target_distribution.entropy()
+            + hotbar_distribution.entropy()
         )
         return log_probabilities, entropy
 
@@ -206,7 +255,8 @@ class MeleeCombatPolicy(nn.Module):
         weapon_features: Tensor,
         enemy_type_ids: Tensor | None,
         enemy_features: Tensor | None,
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, bool]:
+        weapon_type_id: Tensor | None,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, bool]:
         if grid.ndim == 4:
             if enemy_type_ids is None:
                 enemy_type_ids = torch.zeros(
@@ -218,12 +268,15 @@ class MeleeCombatPolicy(nn.Module):
                     grid.shape[0], self.spec.enemy_slots, self.spec.enemy_features,
                     dtype=grid.dtype, device=grid.device
                 )
+            if weapon_type_id is None:
+                weapon_type_id = torch.zeros(grid.shape[0], dtype=torch.long, device=grid.device)
             return (
                 grid.unsqueeze(1),
                 player_features.unsqueeze(1),
                 weapon_features.unsqueeze(1),
                 enemy_type_ids.unsqueeze(1),
                 enemy_features.unsqueeze(1),
+                weapon_type_id.unsqueeze(1),
                 True,
             )
         if grid.ndim == 5:
@@ -237,5 +290,7 @@ class MeleeCombatPolicy(nn.Module):
                     grid.shape[0], grid.shape[1], self.spec.enemy_slots, self.spec.enemy_features,
                     dtype=grid.dtype, device=grid.device
                 )
-            return grid, player_features, weapon_features, enemy_type_ids, enemy_features, False
+            if weapon_type_id is None:
+                weapon_type_id = torch.zeros(grid.shape[0], grid.shape[1], dtype=torch.long, device=grid.device)
+            return grid, player_features, weapon_features, enemy_type_ids, enemy_features, weapon_type_id, False
         raise ValueError("grid must have shape [batch, channels, height, width] or [batch, time, channels, height, width]")

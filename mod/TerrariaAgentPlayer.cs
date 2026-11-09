@@ -70,6 +70,10 @@ public sealed class TerrariaAgentPlayer : ModPlayer
 
         bool actionIsFresh = actionAge <= MaxActionAge;
         bool shouldAttack = actionIsFresh && currentAction.Attack && IsCombatItem(Player.HeldItem);
+        if (actionIsFresh && currentAction.HotbarSlot >= 0 && currentAction.HotbarSlot < 10)
+        {
+            Player.selectedItem = currentAction.HotbarSlot;
+        }
         Player.controlLeft = actionIsFresh && currentAction.Left;
         Player.controlRight = actionIsFresh && currentAction.Right;
         Player.controlJump = actionIsFresh && currentAction.Jump;
@@ -80,8 +84,16 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         {
             Player.controlUseTile = false;
         }
-        Vector2 aimDirection = AimDirections[Math.Clamp(currentAction.AimDirection, 0, 7)];
-        if (currentAction.AutoAim && TryGetClosestEnemyDirection(out Vector2 targetDirection))
+        Vector2 aimDirection = new(currentAction.AimX, currentAction.AimY);
+        if (aimDirection.LengthSquared() < 0.0001f)
+        {
+            aimDirection = Vector2.UnitX * Player.direction;
+        }
+        else
+        {
+            aimDirection.Normalize();
+        }
+        if (currentAction.AutoAim && TryGetTargetDirection(currentAction.TargetSlot, out Vector2 targetDirection))
         {
             aimDirection = targetDirection;
         }
@@ -254,9 +266,9 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         }
     }
 
-    private bool TryGetClosestEnemyDirection(out Vector2 direction)
+    private bool TryGetTargetDirection(int targetSlot, out Vector2 direction)
     {
-        if (!TryGetClosestEnemyCenter(out Vector2 closestEnemyCenter))
+        if (!TryGetTargetCenter(targetSlot, out Vector2 closestEnemyCenter))
         {
             direction = Vector2.UnitX * Player.direction;
             return false;
@@ -274,10 +286,9 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         return true;
     }
 
-    private bool TryGetClosestEnemyCenter(out Vector2 center)
+    private bool TryGetTargetCenter(int targetSlot, out Vector2 center)
     {
-        NPC? closestEnemy = null;
-        float closestDistanceSquared = float.MaxValue;
+        List<NPC> enemies = new();
         for (int npcIndex = 0; npcIndex < Main.maxNPCs; npcIndex++)
         {
             NPC npc = Main.npc[npcIndex];
@@ -286,21 +297,19 @@ public sealed class TerrariaAgentPlayer : ModPlayer
                 continue;
             }
 
-            float distanceSquared = Vector2.DistanceSquared(Player.Center, npc.Center);
-            if (distanceSquared < closestDistanceSquared)
-            {
-                closestEnemy = npc;
-                closestDistanceSquared = distanceSquared;
-            }
+            enemies.Add(npc);
         }
 
-        if (closestEnemy is null)
+        enemies.Sort((left, right) =>
+            Vector2.DistanceSquared(Player.Center, left.Center)
+                .CompareTo(Vector2.DistanceSquared(Player.Center, right.Center)));
+        if (enemies.Count == 0)
         {
             center = Player.Center + Vector2.UnitX * Player.direction;
             return false;
         }
 
-        center = closestEnemy.Center;
+        center = enemies[Math.Clamp(targetSlot, 0, enemies.Count - 1)].Center;
         return true;
     }
 

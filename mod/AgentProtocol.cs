@@ -27,11 +27,20 @@ public sealed class AgentAction
     [JsonPropertyName("attack")]
     public bool Attack { get; set; }
 
-    [JsonPropertyName("aim_direction")]
-    public int AimDirection { get; set; }
+    [JsonPropertyName("aim_x")]
+    public float AimX { get; set; } = 1f;
+
+    [JsonPropertyName("aim_y")]
+    public float AimY { get; set; }
 
     [JsonPropertyName("auto_aim")]
     public bool AutoAim { get; set; }
+
+    [JsonPropertyName("target_slot")]
+    public int TargetSlot { get; set; }
+
+    [JsonPropertyName("hotbar_slot")]
+    public int HotbarSlot { get; set; }
 }
 
 public sealed class CombatObservation

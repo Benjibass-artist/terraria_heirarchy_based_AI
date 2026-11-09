@@ -1,5 +1,6 @@
 import argparse
 import json
+import math
 import socketserver
 from dataclasses import dataclass
 from pathlib import Path
@@ -119,17 +120,37 @@ class MeleeAgentSession:
     def _scripted_action(self) -> dict[str, Any]:
         cycle = self.scripted_tick // self.scripted_phase_ticks
         phase = cycle % 5
-        aim_direction = cycle % 8
+        aim_angle = (cycle % 8) * math.pi / 4.0
+        aim_x = math.cos(aim_angle)
+        aim_y = math.sin(aim_angle)
         auto_aim = cycle % 2 == 0
+        action = {
+            "left": False,
+            "right": False,
+            "jump": False,
+            "down": False,
+            "attack": True,
+            "aim_x": aim_x,
+            "aim_y": aim_y,
+            "auto_aim": auto_aim,
+            "target_slot": 0,
+            "hotbar_slot": 0,
+        }
         if phase == 0:
-            return {"left": False, "right": True, "jump": False, "down": False, "attack": True, "aim_direction": aim_direction, "auto_aim": auto_aim}
+            action["right"] = True
+            return action
         if phase == 1:
-            return {"left": False, "right": True, "jump": True, "down": False, "attack": True, "aim_direction": aim_direction, "auto_aim": auto_aim}
+            action["right"] = True
+            action["jump"] = True
+            return action
         if phase == 2:
-            return {"left": True, "right": False, "jump": True, "down": False, "attack": True, "aim_direction": aim_direction, "auto_aim": auto_aim}
+            action["left"] = True
+            action["jump"] = True
+            return action
         if phase == 3:
-            return {"left": True, "right": False, "jump": False, "down": True, "attack": True, "aim_direction": aim_direction, "auto_aim": auto_aim}
-        return {"left": False, "right": False, "jump": False, "down": False, "attack": True, "aim_direction": aim_direction, "auto_aim": auto_aim}
+            action["left"] = True
+            action["down"] = True
+        return action
 
     def build_ppo_batch(self, last_value: float = 0.0):
         return self.rollout_buffer.to_batch(last_value=last_value)
@@ -186,17 +207,24 @@ class MeleeAgentSession:
             )
         return grid, player_features, weapon_features, enemy_type_ids, enemy_features
 
-    @staticmethod
-    def _decode_action(action: torch.Tensor) -> dict[str, Any]:
+    def _decode_action(self, action: torch.Tensor) -> dict[str, Any]:
         movement = action[:5].to(torch.bool).tolist()
+        aim = action[5:7].clamp(-1.0, 1.0)
+        auto_aim_index = 7
+        target_start = auto_aim_index + 1
+        target_end = target_start + self.spec.target_action_count
+        hotbar_end = target_end + self.spec.hotbar_action_count
         return {
             "left": movement[0],
             "right": movement[1],
             "jump": movement[2],
             "down": movement[3],
             "attack": movement[4],
-            "aim_direction": int(action[5:-1].argmax().item()),
-            "auto_aim": bool(action[-1].item() >= 0.5),
+            "aim_x": float(aim[0].item()),
+            "aim_y": float(aim[1].item()),
+            "auto_aim": bool(action[auto_aim_index].item() >= 0.5),
+            "target_slot": int(action[target_start:target_end].argmax().item()),
+            "hotbar_slot": int(action[target_end:hotbar_end].argmax().item()),
         }
 
     @staticmethod
@@ -207,8 +235,11 @@ class MeleeAgentSession:
             "jump": False,
             "down": False,
             "attack": False,
-            "aim_direction": 0,
+            "aim_x": 1.0,
+            "aim_y": 0.0,
             "auto_aim": False,
+            "target_slot": 0,
+            "hotbar_slot": 0,
         }
 
 
