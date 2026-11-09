@@ -187,7 +187,11 @@ class MeleeCombatPolicy(nn.Module):
             if deterministic
             else movement_distribution.sample()
         )
-        aim_actions = aim_logits if deterministic else aim_distribution.sample()
+        raw_aim_actions = aim_logits if deterministic else aim_distribution.sample()
+        aim_actions = torch.tanh(raw_aim_actions)
+        aim_log_probability = self._squashed_log_probability(
+            aim_distribution, raw_aim_actions, aim_actions
+        )
         auto_aim_actions = (
             (auto_aim_logits >= 0).to(dtype=torch.float32)
             if deterministic
@@ -204,7 +208,7 @@ class MeleeCombatPolicy(nn.Module):
         actions = torch.cat((movement_actions, aim_actions, auto_aim_actions, target_actions, hotbar_actions), dim=-1)
         log_probabilities = (
             movement_distribution.log_prob(movement_actions).sum(dim=-1)
-            + aim_distribution.log_prob(aim_actions).sum(dim=-1)
+            + aim_log_probability
             + auto_aim_distribution.log_prob(auto_aim_actions).sum(dim=-1)
             + target_distribution.log_prob(target_index)
             + hotbar_distribution.log_prob(hotbar_index)
@@ -232,9 +236,14 @@ class MeleeCombatPolicy(nn.Module):
         auto_aim_distribution = Bernoulli(logits=auto_aim_logits)
         target_distribution = torch.distributions.Categorical(logits=target_logits)
         hotbar_distribution = torch.distributions.Categorical(logits=hotbar_logits)
+        aim_actions = actions[..., aim_start:aim_end].clamp(-0.999999, 0.999999)
+        raw_aim_actions = torch.atanh(aim_actions)
+        aim_log_probability = self._squashed_log_probability(
+            aim_distribution, raw_aim_actions, aim_actions
+        )
         log_probabilities = (
             movement_distribution.log_prob(movement_actions).sum(dim=-1)
-            + aim_distribution.log_prob(aim_actions).sum(dim=-1)
+            + aim_log_probability
             + auto_aim_distribution.log_prob(auto_aim_actions).sum(dim=-1)
             + target_distribution.log_prob(target_actions.argmax(dim=-1))
             + hotbar_distribution.log_prob(hotbar_actions.argmax(dim=-1))
@@ -247,6 +256,15 @@ class MeleeCombatPolicy(nn.Module):
             + hotbar_distribution.entropy()
         )
         return log_probabilities, entropy
+
+    @staticmethod
+    def _squashed_log_probability(
+        distribution: torch.distributions.Normal,
+        raw_actions: Tensor,
+        actions: Tensor,
+    ) -> Tensor:
+        correction = torch.log(1.0 - actions.square() + 1e-6)
+        return (distribution.log_prob(raw_actions) - correction).sum(dim=-1)
 
     def _add_time_axis(
         self,
