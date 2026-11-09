@@ -17,6 +17,8 @@ The external `WeaponTrainingScheduler` rotates all ten hotbar slots by training 
 
 `TrainingMetricsLogger` appends ten-minute weapon and overall point periods to `training_metrics.csv` and refreshes `training_progress.png` after each completed period. Re-training a weapon creates new period rows; earlier rows are never deleted. You can also manually regenerate the image with `python plot_training.py`.
 
+Periodic checkpoints default to every 60 PPO updates, plus saves on weapon changes and clean shutdown. Older random-named checkpoints are preserved; new checkpoints include the weapon name.
+
 `WeaponTrainingManager` keeps the policy shared while tracking the active weapon and per-weapon training progress. It saves before scheduler transitions and loads the newest weapon checkpoint when resuming. Checkpoint files are append-only, so stopping and restarting training does not erase previous progress.
 
 `combat.PPOTrainer` provides the clipped PPO update step. It consumes rollout batches from an environment; the Terraria TCP rollout collector is the next integration layer.

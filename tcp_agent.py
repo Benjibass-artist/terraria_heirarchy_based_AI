@@ -46,7 +46,7 @@ class MeleeAgentSession:
         scripted_phase_ticks: int = 300,
         train: bool = False,
         rollout_size: int = 2048,
-        checkpoint_updates: int = 10,
+        checkpoint_updates: int = 60,
         metrics_path: str | Path = "training_metrics.csv",
         metrics_plot_path: str | Path = "training_progress.png",
         cycle_hotbar: bool = False,
@@ -444,7 +444,7 @@ if __name__ == "__main__":
     parser.add_argument("--scripted-phase-ticks", type=int, default=300)
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--rollout-size", type=int, default=2048)
-    parser.add_argument("--checkpoint-updates", type=int, default=10)
+    parser.add_argument("--checkpoint-updates", type=int, default=60)
     parser.add_argument("--cycle-hotbar", action="store_true")
     parser.add_argument("--weapon-phase-ticks", type=int, default=1800)
     parser.add_argument("--metrics-path", default="training_metrics.csv")
