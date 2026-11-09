@@ -44,6 +44,8 @@ class MeleeAgentSession:
         train: bool = False,
         rollout_size: int = 2048,
         checkpoint_updates: int = 10,
+        cycle_hotbar: bool = False,
+        weapon_phase_ticks: int = 1800,
     ) -> None:
         self.spec = CombatObservationSpec()
         self.device = torch.device(device)
@@ -64,6 +66,8 @@ class MeleeAgentSession:
         self.policy.eval()
         self.scripted = scripted
         self.train = train and not scripted
+        self.cycle_hotbar = cycle_hotbar
+        self.weapon_phase_ticks = weapon_phase_ticks
         self.rollout_size = rollout_size
         self.checkpoint_updates = checkpoint_updates
         self.update_count = 0
@@ -165,17 +169,19 @@ class MeleeAgentSession:
         aim_x = math.cos(aim_angle)
         aim_y = math.sin(aim_angle)
         auto_aim = cycle % 2 == 0
+        hotbar_slot = (self.scripted_tick // self.weapon_phase_ticks) % 10 if self.cycle_hotbar else 0
+        attack = self.scripted_tick % 45 < 15
         action = {
             "left": False,
             "right": False,
             "jump": False,
             "down": False,
-            "attack": True,
+            "attack": attack,
             "aim_x": aim_x,
             "aim_y": aim_y,
             "auto_aim": auto_aim,
             "target_slot": 0,
-            "hotbar_slot": 0,
+            "hotbar_slot": hotbar_slot,
         }
         if phase == 0:
             action["right"] = True
@@ -320,6 +326,8 @@ def run_server(
     train: bool,
     rollout_size: int,
     checkpoint_updates: int,
+    cycle_hotbar: bool,
+    weapon_phase_ticks: int,
 ) -> None:
     server = socketserver.ThreadingTCPServer((host, port), AgentRequestHandler)
     server.daemon_threads = True
@@ -331,6 +339,8 @@ def run_server(
         train=train,
         rollout_size=rollout_size,
         checkpoint_updates=checkpoint_updates,
+        cycle_hotbar=cycle_hotbar,
+        weapon_phase_ticks=weapon_phase_ticks,
     )  # type: ignore[attr-defined]
     mode = "scripted input test" if scripted else ("live PPO training" if train else "policy inference")
     print(f"Melee agent listening on {host}:{port} ({mode})", flush=True)
@@ -352,6 +362,8 @@ if __name__ == "__main__":
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--rollout-size", type=int, default=2048)
     parser.add_argument("--checkpoint-updates", type=int, default=10)
+    parser.add_argument("--cycle-hotbar", action="store_true")
+    parser.add_argument("--weapon-phase-ticks", type=int, default=1800)
     arguments = parser.parse_args()
     run_server(
         arguments.host,
@@ -363,4 +375,6 @@ if __name__ == "__main__":
         arguments.train,
         arguments.rollout_size,
         arguments.checkpoint_updates,
+        arguments.cycle_hotbar,
+        arguments.weapon_phase_ticks,
     )

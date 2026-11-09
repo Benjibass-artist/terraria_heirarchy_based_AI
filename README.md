@@ -35,7 +35,7 @@ For the first in-game control test, use scripted actions instead of the untraine
 python tcp_agent.py --scripted
 ```
 
-The scripted cycle tests right, right+jump, left+jump, down+left, and attack. It attacks during every phase so the test is visible sooner. Each phase lasts five seconds by default. Use `--scripted-phase-ticks 600` for ten-second phases. Scripted actions alternate `auto_aim` on and off, testing both closest-enemy targeting and learned continuous aim. The observation includes explicit enemy records, and PPO can choose a target slot and hotbar slot. The mod pauses AI controls and stops sending observations while the Terraria window is unfocused.
+The scripted cycle tests right, right+jump, left+jump, down+left, and pulsed attacks. Use `--cycle-hotbar` to rotate through all ten hotbar slots. `--weapon-phase-ticks 1800` changes weapons every 30 seconds for testing; use `162000` for approximately 45 minutes at 60 observations per second. The observation includes explicit enemy records, and PPO can choose a target slot and hotbar slot. The mod pauses AI controls and stops sending observations while the Terraria window is unfocused.
 
 The reward module uses the requested values:
 
@@ -46,6 +46,8 @@ The reward module uses the requested values:
 - `-20` only when the player transitions from alive to dead.
 
 Respawning does not apply another death penalty because it is not an alive-to-dead transition.
+
+Misses are scored per completed weapon swing, not per frame while the attack button is held. A held attack therefore cannot accumulate `-10` every tick; Terraria's animation completion resolves one hit or miss event.
 
 ## tModLoader bridge
 

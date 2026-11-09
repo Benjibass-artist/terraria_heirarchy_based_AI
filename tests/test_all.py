@@ -45,6 +45,9 @@ def test_model_and_rewards() -> None:
     assert compute_combat_reward(
         CombatRewardEvent(attack_attempted=True, attack_hit=True, damage_taken=4, enemies_killed=1, was_alive=True, is_alive=False)
     ) == 8.0
+    assert compute_combat_reward(
+        CombatRewardEvent(attack_attempted=True, attack_hit=False)
+    ) == -10.0
     assert compute_combat_reward(CombatRewardEvent(was_alive=False, is_alive=True)) == 0.0
 
 
