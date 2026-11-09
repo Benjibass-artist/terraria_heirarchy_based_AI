@@ -82,16 +82,17 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             Player.selectedItem = currentAction.HotbarSlot;
         }
         bool hasCombatItem = IsCombatItem(Player.HeldItem);
-        bool shouldAttack = actionIsFresh && currentAction.Attack && hasCombatItem;
+        bool attackRequested = actionIsFresh && currentAction.Attack && hasCombatItem;
         bool weaponReady = hasCombatItem
             && Player.itemTime <= 0
             && Player.itemAnimation <= 0
             && !Player.dead;
-        if (shouldAttack && !previousAttackRequest && !weaponReady)
+        if (attackRequested && !previousAttackRequest && !weaponReady)
         {
             attackNotReadyThisTick = true;
         }
-        previousAttackRequest = shouldAttack;
+        previousAttackRequest = attackRequested;
+        bool shouldAttack = attackRequested && weaponReady;
         Player.controlLeft = actionIsFresh && currentAction.Left;
         Player.controlRight = actionIsFresh && currentAction.Right;
         Player.controlJump = actionIsFresh && currentAction.Jump;
