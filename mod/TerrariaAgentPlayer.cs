@@ -70,7 +70,12 @@ public sealed class TerrariaAgentPlayer : ModPlayer
 
         bool actionIsFresh = actionAge <= MaxActionAge;
         bool shouldAttack = actionIsFresh && currentAction.Attack && IsCombatItem(Player.HeldItem);
-        if (actionIsFresh && currentAction.HotbarSlot >= 0 && currentAction.HotbarSlot < 10)
+        if (
+            actionIsFresh
+            && currentAction.HotbarSlot >= 0
+            && currentAction.HotbarSlot < 10
+            && IsCombatItem(Player.inventory[currentAction.HotbarSlot])
+        )
         {
             Player.selectedItem = currentAction.HotbarSlot;
         }
