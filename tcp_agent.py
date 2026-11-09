@@ -230,6 +230,29 @@ class MeleeAgentSession:
         weapon_features = torch.tensor(
             observation["weapon_features"], dtype=torch.float32, device=self.device
         ).unsqueeze(0)
+        hotbar_features = torch.zeros(1, 10, 12, dtype=torch.float32, device=self.device)
+        for slot in observation.get("hotbar", []):
+            index = int(slot.get("slot", -1))
+            if 0 <= index < 10:
+                hotbar_features[0, index] = torch.tensor(
+                    [
+                        min(max(float(slot.get("item_type_id", 0)) / 512.0, 0.0), 1.0),
+                        float(slot.get("valid_weapon", 0.0)),
+                        float(slot.get("damage", 0.0)),
+                        float(slot.get("use_time", 0.0)),
+                        float(slot.get("knockback", 0.0)),
+                        float(slot.get("shoot", 0.0)),
+                        float(slot.get("shoot_speed", 0.0)),
+                        float(slot.get("melee", 0.0)),
+                        float(slot.get("no_melee", 0.0)),
+                        float(slot.get("range", 0.0)),
+                        float(slot.get("area", 0.0)),
+                        float(slot.get("selected", 0.0)),
+                    ],
+                    dtype=torch.float32,
+                    device=self.device,
+                )
+        weapon_features = torch.cat((weapon_features, hotbar_features.flatten(1)), dim=1)
         enemy_type_ids = torch.tensor(
             observation["enemy_type_ids"], dtype=torch.long, device=self.device
         ).reshape(1, self.spec.grid_height, self.spec.grid_width)

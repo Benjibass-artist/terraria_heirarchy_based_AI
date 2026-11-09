@@ -63,6 +63,9 @@ public sealed class CombatObservation
     [JsonPropertyName("weapon_type_id")]
     public int WeaponTypeId { get; set; }
 
+    [JsonPropertyName("hotbar")]
+    public List<HotbarSlotObservation> Hotbar { get; set; } = new();
+
     [JsonPropertyName("attack_attempted")]
     public bool AttackAttempted { get; set; }
 
@@ -83,6 +86,48 @@ public sealed class CombatObservation
 
     [JsonPropertyName("enemies")]
     public List<EnemyObservation> Enemies { get; set; } = new();
+}
+
+public sealed class HotbarSlotObservation
+{
+    [JsonPropertyName("slot")]
+    public int Slot { get; set; }
+
+    [JsonPropertyName("item_type_id")]
+    public int ItemTypeId { get; set; }
+
+    [JsonPropertyName("valid_weapon")]
+    public float ValidWeapon { get; set; }
+
+    [JsonPropertyName("damage")]
+    public float Damage { get; set; }
+
+    [JsonPropertyName("use_time")]
+    public float UseTime { get; set; }
+
+    [JsonPropertyName("knockback")]
+    public float Knockback { get; set; }
+
+    [JsonPropertyName("shoot")]
+    public float Shoot { get; set; }
+
+    [JsonPropertyName("shoot_speed")]
+    public float ShootSpeed { get; set; }
+
+    [JsonPropertyName("melee")]
+    public float Melee { get; set; }
+
+    [JsonPropertyName("no_melee")]
+    public float NoMelee { get; set; }
+
+    [JsonPropertyName("range")]
+    public float Range { get; set; }
+
+    [JsonPropertyName("area")]
+    public float Area { get; set; }
+
+    [JsonPropertyName("selected")]
+    public float Selected { get; set; }
 }
 
 public sealed class EnemyObservation

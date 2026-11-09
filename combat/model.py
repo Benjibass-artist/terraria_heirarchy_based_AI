@@ -13,7 +13,7 @@ class CombatObservationSpec:
     enemy_type_count: int = 512
     enemy_embedding_size: int = 8
     player_features: int = 16
-    weapon_features: int = 16
+    weapon_features: int = 136
     weapon_type_count: int = 512
     weapon_embedding_size: int = 8
     enemy_slots: int = 32

@@ -257,6 +257,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             PlayerFeatures = BuildPlayerFeatures(playerTile, closestEnemyOffset, hasClosestEnemy),
             WeaponFeatures = BuildWeaponFeatures(),
             WeaponTypeId = Player.HeldItem.type,
+            Hotbar = BuildHotbarObservations(),
             AttackAttempted = attackAttemptedThisTick,
             AttackHit = attackHitThisTick,
             DamageTaken = Math.Max(previousLife - Player.statLife, 0),
@@ -370,5 +371,32 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             Player.selectedItem,
             0f, 0f, 0f, 0f,
         ];
+    }
+
+    private List<HotbarSlotObservation> BuildHotbarObservations()
+    {
+        List<HotbarSlotObservation> hotbar = new();
+        for (int slot = 0; slot < 10; slot++)
+        {
+            Item item = Player.inventory[slot];
+            bool validWeapon = IsCombatItem(item);
+            hotbar.Add(new HotbarSlotObservation
+            {
+                Slot = slot,
+                ItemTypeId = item.type,
+                ValidWeapon = validWeapon ? 1f : 0f,
+                Damage = item.damage / 500f,
+                UseTime = item.useTime / 100f,
+                Knockback = item.knockBack / 20f,
+                Shoot = item.shoot / 1000f,
+                ShootSpeed = item.shootSpeed / 100f,
+                Melee = item.DamageType.CountsAsClass(DamageClass.Melee) ? 1f : 0f,
+                NoMelee = item.noMelee ? 1f : 0f,
+                Range = item.shoot > 0 ? item.shootSpeed / 100f : item.width / 100f,
+                Area = item.width * item.height / 10000f,
+                Selected = Player.selectedItem == slot ? 1f : 0f,
+            });
+        }
+        return hotbar;
     }
 }
