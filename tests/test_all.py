@@ -18,6 +18,7 @@ from combat import (
     WeaponScheduleConfig,
     WeaponTrainingManager,
     WeaponTrainingScheduler,
+    TrainingMetricsLogger,
 )
 from combat.rollout import RolloutBuffer
 from tcp_agent import AgentRequestHandler, MeleeAgentSession
@@ -173,6 +174,17 @@ def test_weapon_training_manager_persists_shared_policy() -> None:
         assert restored["weapon_id"] == 101
 
 
+def test_metrics_resume_uses_previous_cumulative_value() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        path = f"{directory}/metrics.csv"
+        first_logger = TrainingMetricsLogger(path)
+        first_logger.record_period(7, 36_000, 100.0)
+        resumed_logger = TrainingMetricsLogger(path)
+        resumed_logger.record_period(7, 72_000, 135.0)
+        rows = list(__import__("csv").DictReader(open(path, encoding="utf-8")))
+        assert float(rows[-1]["period_points"]) == 35.0
+
+
 if __name__ == "__main__":
     test_model_and_rewards()
     test_ppo_and_rollout()
@@ -180,4 +192,5 @@ if __name__ == "__main__":
     test_append_only_weapon_checkpoints()
     test_external_weapon_scheduler()
     test_weapon_training_manager_persists_shared_policy()
+    test_metrics_resume_uses_previous_cumulative_value()
     print("all tests passed")

@@ -4,6 +4,8 @@ __pycache__/
 venv/
 .pytest_cache/
 checkpoints/
+training_metrics.csv
+training_progress.png
 *.pt
 *.pth
 *.safetensors

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class WeaponScheduleConfig:
     hotbar_slots: tuple[int, ...] = tuple(range(10))
-    switch_interval_steps: int = 162_000
+    switch_interval_steps: int = 324_000
 
 
 @dataclass(frozen=True)

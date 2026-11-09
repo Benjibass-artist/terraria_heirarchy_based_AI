@@ -13,7 +13,9 @@ Initial melee-combat foundation for a Terraria AI written in PyTorch.
 - Actor head: independently controls left, right, jump, and attack, plus continuous aim, auto-aim choice, target selection, and hotbar selection.
 - Critic head: estimates the value of the current state for PPO.
 
-The external `WeaponTrainingScheduler` rotates all ten hotbar slots by training steps. At 60 observations per second, its default 162,000-step interval is approximately 45 minutes. It is orchestration code, not part of the neural network, so normal gameplay can use only one to three weapons without changing the policy.
+The external `WeaponTrainingScheduler` rotates all ten hotbar slots by training steps. At 60 observations per second, its default 324,000-step interval is approximately 1.5 hours. It wraps from slot 9 back to slot 0. It is orchestration code, not part of the neural network, so normal gameplay can use only one to three weapons without changing the policy.
+
+`TrainingMetricsLogger` appends ten-minute weapon and overall point periods to `training_metrics.csv`. Re-training a weapon creates new period rows; earlier rows are never deleted. Run `python plot_training.py` after training to create `training_progress.png`.
 
 `WeaponTrainingManager` keeps the policy shared while tracking the active weapon and per-weapon training progress. It saves before scheduler transitions and loads the newest weapon checkpoint when resuming. Checkpoint files are append-only, so stopping and restarting training does not erase previous progress.
 

@@ -44,6 +44,7 @@ class MeleeAgentSession:
         train: bool = False,
         rollout_size: int = 2048,
         checkpoint_updates: int = 10,
+        metrics_path: str | Path = "training_metrics.csv",
         cycle_hotbar: bool = False,
         weapon_phase_ticks: int = 1800,
     ) -> None:
@@ -51,7 +52,10 @@ class MeleeAgentSession:
         self.device = torch.device(device)
         self.policy = MeleeCombatPolicy(self.spec).to(self.device)
         self.trainer = PPOTrainer(self.policy)
-        self.training_manager = WeaponTrainingManager(self.trainer)
+        self.training_manager = WeaponTrainingManager(
+            self.trainer,
+            metrics_path=metrics_path,
+        )
         if checkpoint is not None:
             state = torch.load(checkpoint, map_location=self.device, weights_only=False)
             self.policy.load_state_dict(state.get("policy_state", state))
@@ -120,6 +124,7 @@ class MeleeAgentSession:
             int(weapon_type_id[0].item()),
             steps=1,
         )
+        self.training_manager.record_reward(reward)
         if weapon_changed and self.training_manager.state.global_steps > 1:
             self.training_manager.save({"reason": "weapon_change"})
 
@@ -351,6 +356,7 @@ def run_server(
     checkpoint_updates: int,
     cycle_hotbar: bool,
     weapon_phase_ticks: int,
+    metrics_path: str,
 ) -> None:
     server = socketserver.ThreadingTCPServer((host, port), AgentRequestHandler)
     server.daemon_threads = True
@@ -364,6 +370,7 @@ def run_server(
         checkpoint_updates=checkpoint_updates,
         cycle_hotbar=cycle_hotbar,
         weapon_phase_ticks=weapon_phase_ticks,
+        metrics_path=metrics_path,
     )  # type: ignore[attr-defined]
     mode = "scripted input test" if scripted else ("live PPO training" if train else "policy inference")
     print(f"Melee agent listening on {host}:{port} ({mode})", flush=True)
@@ -387,6 +394,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint-updates", type=int, default=10)
     parser.add_argument("--cycle-hotbar", action="store_true")
     parser.add_argument("--weapon-phase-ticks", type=int, default=1800)
+    parser.add_argument("--metrics-path", default="training_metrics.csv")
     arguments = parser.parse_args()
     run_server(
         arguments.host,
@@ -400,4 +408,5 @@ if __name__ == "__main__":
         arguments.checkpoint_updates,
         arguments.cycle_hotbar,
         arguments.weapon_phase_ticks,
+        arguments.metrics_path,
     )

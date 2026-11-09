@@ -8,6 +8,7 @@ import torch
 from torch.optim import Optimizer
 
 from .checkpoints import WeaponCheckpointStore
+from .metrics import TrainingMetricsLogger
 from .ppo import PPOBatch, PPOTrainer
 from .scheduler import WeaponTrainingScheduler
 
@@ -31,11 +32,18 @@ class WeaponTrainingManager:
         trainer: PPOTrainer,
         checkpoint_directory: str | Path = "checkpoints",
         scheduler: WeaponTrainingScheduler | None = None,
+        metrics_path: str | Path = "training_metrics.csv",
+        metrics_period_steps: int = 36_000,
     ) -> None:
         self.trainer = trainer
         self.scheduler = scheduler or WeaponTrainingScheduler()
         self.checkpoints = WeaponCheckpointStore(checkpoint_directory)
+        self.metrics = TrainingMetricsLogger(metrics_path)
+        self.metrics_period_steps = metrics_period_steps
         self.state = TrainingState()
+        self.weapon_points: dict[int, float] = {}
+        self.overall_points = 0.0
+        self.last_metrics_period = 0
 
     def observe_weapon(self, weapon_id: int, steps: int = 1) -> bool:
         """Record the equipped weapon and return whether it changed."""
@@ -56,6 +64,23 @@ class WeaponTrainingManager:
     def update(self, batch: PPOBatch) -> dict[str, float]:
         metrics = self.trainer.update(batch)
         return metrics
+
+    def record_reward(self, reward: float) -> None:
+        if self.state.active_weapon_id is None:
+            return
+        weapon_id = self.state.active_weapon_id
+        self.weapon_points[weapon_id] = self.weapon_points.get(weapon_id, 0.0) + reward
+        self.overall_points += reward
+        metrics_period = self.state.global_steps // self.metrics_period_steps
+        if metrics_period <= self.last_metrics_period:
+            return
+        self.metrics.record_period(
+            weapon_id,
+            self.state.global_steps,
+            self.weapon_points[weapon_id],
+        )
+        self.metrics.record_overall_period(self.state.global_steps, self.overall_points)
+        self.last_metrics_period = metrics_period
 
     def save(self, metrics: dict[str, float] | None = None) -> Path:
         if self.state.active_weapon_id is None:

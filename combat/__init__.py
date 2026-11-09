@@ -6,6 +6,7 @@ from .replay import ReplayBuffer, WeaponReplayMixer
 from .checkpoints import WeaponCheckpointStore
 from .scheduler import WeaponScheduleConfig, WeaponSwitch, WeaponTrainingScheduler
 from .training import TrainingState, WeaponTrainingManager
+from .metrics import TrainingMetricsLogger
 
 __all__ = [
 	"CombatObservationSpec",
@@ -23,6 +24,7 @@ __all__ = [
 	"WeaponTrainingScheduler",
 	"TrainingState",
 	"WeaponTrainingManager",
+	"TrainingMetricsLogger",
 	"CombatRewardConfig",
 	"CombatRewardEvent",
 	"compute_combat_reward",
