@@ -10,7 +10,7 @@ Initial melee-combat foundation for a Terraria AI written in PyTorch.
 - Enemy embedding: converts each enemy type ID into a learned spatial feature; ID `0` means no enemy.
 - MLP: encodes player and weapon features.
 - GRU: remembers recent movement, enemy, and projectile behavior.
-- Actor head: independently controls left, right, jump, down, and attack, plus an 8-way aim direction for shortswords.
+- Actor head: independently controls left, right, jump, and attack, plus an 8-way aim direction and auto-aim choice for shortswords.
 - Critic head: estimates the value of the current state for PPO.
 
 `combat.PPOTrainer` provides the clipped PPO update step. It consumes rollout batches from an environment; the Terraria TCP rollout collector is the next integration layer.
@@ -31,7 +31,7 @@ For the first in-game control test, use scripted actions instead of the untraine
 python tcp_agent.py --scripted
 ```
 
-The scripted cycle tests right, right+jump, left+jump, down+left, and attack. Each phase lasts five seconds by default. Use `--scripted-phase-ticks 600` for ten-second phases. Scripted actions enable `auto_aim`, which points the sword at the closest chaseable enemy. The observation also includes the closest enemy's normalized direction and distance so the PPO policy can learn the same target relationship. The mod pauses AI controls and stops sending observations while the Terraria window is unfocused.
+The scripted cycle tests right, right+jump, left+jump, down+left, and attack. It attacks during every phase so the test is visible sooner. Each phase lasts five seconds by default. Use `--scripted-phase-ticks 600` for ten-second phases. Scripted actions alternate `auto_aim` on and off, testing both closest-enemy targeting and learned aim directions. The observation also includes the closest enemy's normalized direction and distance so PPO can learn the same target relationship. The mod pauses AI controls and stops sending observations while the Terraria window is unfocused.
 
 The reward module uses the requested values:
 

@@ -30,7 +30,10 @@ def test_model_and_rewards() -> None:
     actions, log_probs, values, hidden = policy.sample_action(
         grid, player, weapon, enemy_type_ids=enemy_types
     )
-    assert actions.shape == (2, spec.movement_action_count + spec.aim_direction_count)
+    assert actions.shape == (
+        2,
+        spec.movement_action_count + spec.aim_direction_count + spec.auto_aim_action_count,
+    )
     assert log_probs.shape == (2,)
     assert values.shape == (2,)
     assert hidden.shape == (spec.gru_layers, 2, spec.hidden_size)

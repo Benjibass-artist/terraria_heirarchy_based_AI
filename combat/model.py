@@ -18,6 +18,7 @@ class CombatObservationSpec:
     gru_layers: int = 1
     movement_action_count: int = 5
     aim_direction_count: int = 8
+    auto_aim_action_count: int = 1
 
 
 class MeleeCombatPolicy(nn.Module):
@@ -69,6 +70,7 @@ class MeleeCombatPolicy(nn.Module):
         )
         self.policy_head = nn.Linear(self.spec.hidden_size, self.spec.movement_action_count)
         self.aim_head = nn.Linear(self.spec.hidden_size, self.spec.aim_direction_count)
+        self.auto_aim_head = nn.Linear(self.spec.hidden_size, self.spec.auto_aim_action_count)
         self.value_head = nn.Linear(self.spec.hidden_size, 1)
 
     def forward(
@@ -103,7 +105,8 @@ class MeleeCombatPolicy(nn.Module):
         recurrent_features, next_hidden = self.recurrent(encoded, hidden_state)
         movement_logits = self.policy_head(recurrent_features)
         aim_logits = self.aim_head(recurrent_features)
-        logits = torch.cat((movement_logits, aim_logits), dim=-1)
+        auto_aim_logits = self.auto_aim_head(recurrent_features)
+        logits = torch.cat((movement_logits, aim_logits, auto_aim_logits), dim=-1)
         values = self.value_head(recurrent_features).squeeze(-1)
 
         if was_single_step:
@@ -127,9 +130,13 @@ class MeleeCombatPolicy(nn.Module):
             enemy_type_ids,
         )
         movement_logits = logits[..., :self.spec.movement_action_count]
-        aim_logits = logits[..., self.spec.movement_action_count:]
+        aim_start = self.spec.movement_action_count
+        aim_end = aim_start + self.spec.aim_direction_count
+        aim_logits = logits[..., aim_start:aim_end]
+        auto_aim_logits = logits[..., aim_end:]
         movement_distribution = Bernoulli(logits=movement_logits)
         aim_distribution = torch.distributions.Categorical(logits=aim_logits)
+        auto_aim_distribution = Bernoulli(logits=auto_aim_logits)
         movement_actions = (
             (movement_logits >= 0).to(dtype=torch.float32)
             if deterministic
@@ -139,27 +146,43 @@ class MeleeCombatPolicy(nn.Module):
         aim_actions = torch.nn.functional.one_hot(
             aim_index, num_classes=self.spec.aim_direction_count
         ).to(dtype=torch.float32)
-        actions = torch.cat((movement_actions, aim_actions), dim=-1)
+        auto_aim_actions = (
+            (auto_aim_logits >= 0).to(dtype=torch.float32)
+            if deterministic
+            else auto_aim_distribution.sample()
+        )
+        actions = torch.cat((movement_actions, aim_actions, auto_aim_actions), dim=-1)
         log_probabilities = (
             movement_distribution.log_prob(movement_actions).sum(dim=-1)
             + aim_distribution.log_prob(aim_index)
+            + auto_aim_distribution.log_prob(auto_aim_actions).sum(dim=-1)
         )
         return actions, log_probabilities, values, next_hidden
 
     def evaluate_actions(self, logits: Tensor, actions: Tensor) -> tuple[Tensor, Tensor]:
         """Return PPO log probabilities and entropy for sampled actions."""
         movement_logits = logits[..., :self.spec.movement_action_count]
-        aim_logits = logits[..., self.spec.movement_action_count:]
+        aim_start = self.spec.movement_action_count
+        aim_end = aim_start + self.spec.aim_direction_count
+        aim_logits = logits[..., aim_start:aim_end]
+        auto_aim_logits = logits[..., aim_end:]
         movement_actions = actions[..., :self.spec.movement_action_count]
-        aim_actions = actions[..., self.spec.movement_action_count:]
+        aim_actions = actions[..., aim_start:aim_end]
+        auto_aim_actions = actions[..., aim_end:]
         movement_distribution = Bernoulli(logits=movement_logits)
         aim_distribution = torch.distributions.Categorical(logits=aim_logits)
+        auto_aim_distribution = Bernoulli(logits=auto_aim_logits)
         aim_index = aim_actions.argmax(dim=-1)
         log_probabilities = (
             movement_distribution.log_prob(movement_actions).sum(dim=-1)
             + aim_distribution.log_prob(aim_index)
+            + auto_aim_distribution.log_prob(auto_aim_actions).sum(dim=-1)
         )
-        entropy = movement_distribution.entropy().sum(dim=-1) + aim_distribution.entropy()
+        entropy = (
+            movement_distribution.entropy().sum(dim=-1)
+            + aim_distribution.entropy()
+            + auto_aim_distribution.entropy().sum(dim=-1)
+        )
         return log_probabilities, entropy
 
     @staticmethod
