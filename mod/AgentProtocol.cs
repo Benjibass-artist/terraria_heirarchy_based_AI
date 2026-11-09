@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
@@ -67,6 +68,39 @@ public sealed class CombatObservation
 
     [JsonPropertyName("is_alive")]
     public bool IsAlive { get; set; }
+
+    [JsonPropertyName("enemies")]
+    public List<EnemyObservation> Enemies { get; set; } = new();
+}
+
+public sealed class EnemyObservation
+{
+    [JsonPropertyName("type_id")]
+    public int TypeId { get; set; }
+
+    [JsonPropertyName("relative_x")]
+    public float RelativeX { get; set; }
+
+    [JsonPropertyName("relative_y")]
+    public float RelativeY { get; set; }
+
+    [JsonPropertyName("velocity_x")]
+    public float VelocityX { get; set; }
+
+    [JsonPropertyName("velocity_y")]
+    public float VelocityY { get; set; }
+
+    [JsonPropertyName("health_fraction")]
+    public float HealthFraction { get; set; }
+
+    [JsonPropertyName("line_of_sight")]
+    public float LineOfSight { get; set; }
+
+    [JsonPropertyName("threat")]
+    public float Threat { get; set; }
+
+    [JsonPropertyName("distance")]
+    public float Distance { get; set; }
 }
 
 internal sealed class AgentTcpClient : IDisposable
@@ -96,7 +130,14 @@ internal sealed class AgentTcpClient : IDisposable
 
     public bool TryGetAction(out AgentAction action)
     {
-        return inbound.TryDequeue(out action!);
+        AgentAction? latest = null;
+        while (inbound.TryDequeue(out AgentAction? next))
+        {
+            latest = next;
+        }
+
+        action = latest!;
+        return latest is not null;
     }
 
     public void Dispose()

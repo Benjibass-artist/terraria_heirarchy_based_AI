@@ -21,7 +21,9 @@ public sealed class TerrariaAgentPlayer : ModPlayer
     ];
     private const int GridWidth = 80;
     private const int GridHeight = 45;
+    private const int MaxActionAge = 15;
     private AgentAction currentAction = new();
+    private int actionAge = MaxActionAge;
     private bool wasAlive = true;
     private int previousLife;
     private int previousItemAnimation;
@@ -38,7 +40,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         previousItemAnimation = Player.itemAnimation;
     }
 
-    public override void PreUpdateMovement()
+    public override void SetControls()
     {
         if (Main.gameMenu || Main.LocalPlayer != Player)
         {
@@ -54,13 +56,29 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         if (TerrariaAgent.Client?.TryGetAction(out AgentAction? action) == true)
         {
             currentAction = action;
+            actionAge = 0;
+        }
+        else
+        {
+            actionAge++;
+            if (actionAge > MaxActionAge)
+            {
+                currentAction = new AgentAction();
+            }
         }
 
-        Player.controlLeft = currentAction.Left;
-        Player.controlRight = currentAction.Right;
-        Player.controlJump = currentAction.Jump;
-        Player.controlDown = currentAction.Down;
-        Player.controlUseItem = currentAction.Attack;
+        bool actionIsFresh = actionAge <= MaxActionAge;
+        bool shouldAttack = actionIsFresh && currentAction.Attack && IsCombatItem(Player.HeldItem);
+        Player.controlLeft = actionIsFresh && currentAction.Left;
+        Player.controlRight = actionIsFresh && currentAction.Right;
+        Player.controlJump = actionIsFresh && currentAction.Jump;
+        Player.controlDown = actionIsFresh && currentAction.Down;
+        Player.controlUseItem = shouldAttack;
+        Player.releaseUseItem = !shouldAttack;
+        if (shouldAttack)
+        {
+            Player.controlUseTile = false;
+        }
         Vector2 aimDirection = AimDirections[Math.Clamp(currentAction.AimDirection, 0, 7)];
         if (currentAction.AutoAim && TryGetClosestEnemyDirection(out Vector2 targetDirection))
         {
@@ -116,12 +134,20 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         Player.controlJump = false;
         Player.controlDown = false;
         Player.controlUseItem = false;
+        Player.releaseUseItem = true;
+        Player.controlUseTile = false;
+    }
+
+    private static bool IsCombatItem(Item item)
+    {
+        return item.damage > 0 && item.pick == 0 && item.axe == 0 && item.hammer == 0;
     }
 
     private CombatObservation BuildObservation()
     {
         int[] gridFlags = new int[GridWidth * GridHeight];
         int[] enemyTypeIds = new int[GridWidth * GridHeight];
+        List<EnemyObservation> enemies = new();
         Vector2 closestEnemyOffset = Vector2.Zero;
         float closestEnemyDistanceSquared = float.MaxValue;
         bool hasClosestEnemy = false;
@@ -180,6 +206,18 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             gridFlags[index] |= 8;
             Vector2 enemyOffset = npc.Center - Player.Center;
             float enemyDistanceSquared = enemyOffset.LengthSquared();
+            enemies.Add(new EnemyObservation
+            {
+                TypeId = npc.type,
+                RelativeX = enemyOffset.X / 16f,
+                RelativeY = enemyOffset.Y / 16f,
+                VelocityX = npc.velocity.X / 16f,
+                VelocityY = npc.velocity.Y / 16f,
+                HealthFraction = npc.lifeMax > 0 ? npc.life / (float)npc.lifeMax : 0f,
+                LineOfSight = Collision.CanHitLine(Player.Center, 1, 1, npc.Center, 1, 1) ? 1f : 0f,
+                Threat = Math.Max(npc.damage, 0) / 100f,
+                Distance = (float)Math.Sqrt(enemyDistanceSquared) / 16f,
+            });
             if (enemyDistanceSquared < closestEnemyDistanceSquared)
             {
                 closestEnemyOffset = enemyOffset;
@@ -201,6 +239,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             EnemiesKilled = enemiesKilledThisTick,
             WasAlive = wasAlive,
             IsAlive = !Player.dead,
+            Enemies = enemies,
         };
     }
 
