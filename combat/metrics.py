@@ -8,6 +8,7 @@ class TrainingMetricsLogger:
     fields = (
         "scope",
         "weapon_id",
+        "weapon_name",
         "period_index",
         "global_step",
         "cumulative_points",
@@ -25,11 +26,31 @@ class TrainingMetricsLogger:
         if not self.path.exists():
             with self.path.open("w", newline="", encoding="utf-8") as file:
                 csv.DictWriter(file, fieldnames=self.fields).writeheader()
+        else:
+            self._migrate_header_if_needed()
         self.weapon_cumulative: dict[int, float] = {}
         self.weapon_periods: dict[int, int] = {}
         self.overall_cumulative = 0.0
         self.overall_period = 0
         self._restore_state()
+
+    def _migrate_header_if_needed(self) -> None:
+        with self.path.open(newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            if set(self.fields).issubset(reader.fieldnames or []):
+                return
+            rows = list(reader)
+        for row in rows:
+            row.setdefault(
+                "weapon_name",
+                "overall" if row.get("scope") == "overall" else f"weapon {row.get('weapon_id', 'unknown')}",
+            )
+        temporary_path = self.path.with_suffix(".migrating")
+        with temporary_path.open("w", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=self.fields)
+            writer.writeheader()
+            writer.writerows(rows)
+        temporary_path.replace(self.path)
 
     def _restore_state(self) -> None:
         with self.path.open(newline="", encoding="utf-8") as file:
@@ -48,6 +69,7 @@ class TrainingMetricsLogger:
     def record_period(
         self,
         weapon_id: int,
+        weapon_name: str,
         global_step: int,
         cumulative_points: float,
     ) -> None:
@@ -58,6 +80,7 @@ class TrainingMetricsLogger:
         self._append(
             "weapon",
             weapon_id,
+            weapon_name,
             period_index,
             global_step,
             cumulative_points,
@@ -72,6 +95,7 @@ class TrainingMetricsLogger:
         self._append(
             "overall",
             -1,
+            "overall",
             self.overall_period,
             global_step,
             cumulative_points,
@@ -93,6 +117,7 @@ class TrainingMetricsLogger:
         self,
         scope: str,
         weapon_id: int,
+        weapon_name: str,
         period_index: int,
         global_step: int,
         cumulative_points: float,
@@ -103,6 +128,7 @@ class TrainingMetricsLogger:
                 {
                     "scope": scope,
                     "weapon_id": weapon_id,
+                    "weapon_name": weapon_name,
                     "period_index": period_index,
                     "global_step": global_step,
                     "cumulative_points": cumulative_points,

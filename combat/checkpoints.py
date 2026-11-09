@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+import re
 
 import torch
 from torch import nn
@@ -23,13 +24,16 @@ class WeaponCheckpointStore:
         policy: nn.Module,
         weapon_id: int,
         training_steps: int,
+        weapon_name: str = "unknown",
         optimizer: torch.optim.Optimizer | None = None,
         metrics: dict[str, float] | None = None,
     ) -> Path:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        path = self.directory / f"weapon_{weapon_id}_{timestamp}_{uuid4().hex[:8]}.pt"
+        safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", weapon_name).strip("._") or "unknown"
+        path = self.directory / f"weapon_{weapon_id}_{safe_name}_{timestamp}_{uuid4().hex[:8]}.pt"
         payload: dict[str, Any] = {
             "weapon_id": int(weapon_id),
+            "weapon_name": weapon_name,
             "training_steps": int(training_steps),
             "saved_at_utc": timestamp,
             "policy_state": policy.state_dict(),

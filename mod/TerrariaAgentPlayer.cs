@@ -258,6 +258,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             PlayerFeatures = BuildPlayerFeatures(playerTile, closestEnemyOffset, hasClosestEnemy),
             WeaponFeatures = BuildWeaponFeatures(),
             WeaponTypeId = Player.HeldItem.type,
+            WeaponName = Player.HeldItem.Name,
             Hotbar = BuildHotbarObservations(),
             AttackAttempted = attackAttemptedThisTick,
             AttackHit = attackHitThisTick,

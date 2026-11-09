@@ -66,6 +66,9 @@ public sealed class CombatObservation
     [JsonPropertyName("weapon_type_id")]
     public int WeaponTypeId { get; set; }
 
+    [JsonPropertyName("weapon_name")]
+    public string WeaponName { get; set; } = "unknown";
+
     [JsonPropertyName("hotbar")]
     public List<HotbarSlotObservation> Hotbar { get; set; } = new();
 

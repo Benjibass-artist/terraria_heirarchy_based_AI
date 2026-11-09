@@ -42,15 +42,17 @@ class WeaponTrainingManager:
         self.metrics = TrainingMetricsLogger(metrics_path, metrics_plot_path)
         self.metrics_period_steps = metrics_period_steps
         self.state = TrainingState()
+        self.weapon_names: dict[int, str] = {}
         self.weapon_points: dict[int, float] = {}
         self.overall_points = 0.0
         self.last_metrics_period = 0
 
-    def observe_weapon(self, weapon_id: int, steps: int = 1) -> bool:
+    def observe_weapon(self, weapon_id: int, weapon_name: str = "unknown", steps: int = 1) -> bool:
         """Record the equipped weapon and return whether it changed."""
         weapon_id = int(weapon_id)
         changed = self.state.active_weapon_id != weapon_id
         self.state.active_weapon_id = weapon_id
+        self.weapon_names[weapon_id] = weapon_name
         self.state.weapon_steps.setdefault(weapon_id, 0)
         self.advance_steps(steps)
         return changed
@@ -77,6 +79,7 @@ class WeaponTrainingManager:
             return
         self.metrics.record_period(
             weapon_id,
+            self.weapon_names.get(weapon_id, "unknown"),
             self.state.global_steps,
             self.weapon_points[weapon_id],
         )
@@ -89,6 +92,7 @@ class WeaponTrainingManager:
         return self.checkpoints.save(
             self.trainer.policy,
             weapon_id=self.state.active_weapon_id,
+            weapon_name=self.weapon_names.get(self.state.active_weapon_id, "unknown"),
             training_steps=self.state.global_steps,
             optimizer=self.trainer.optimizer,
             metrics={

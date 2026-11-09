@@ -139,6 +139,7 @@ class MeleeAgentSession:
 
         weapon_changed = self.training_manager.observe_weapon(
             int(weapon_type_id[0].item()),
+            weapon_name=str(observation.get("weapon_name", "unknown")),
             steps=1,
         )
         self.training_manager.record_reward(reward)

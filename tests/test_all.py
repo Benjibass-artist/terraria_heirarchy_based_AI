@@ -178,9 +178,9 @@ def test_metrics_resume_uses_previous_cumulative_value() -> None:
     with tempfile.TemporaryDirectory() as directory:
         path = f"{directory}/metrics.csv"
         first_logger = TrainingMetricsLogger(path)
-        first_logger.record_period(7, 36_000, 100.0)
+        first_logger.record_period(7, "Iron Sword", 36_000, 100.0)
         resumed_logger = TrainingMetricsLogger(path)
-        resumed_logger.record_period(7, 72_000, 135.0)
+        resumed_logger.record_period(7, "Iron Sword", 72_000, 135.0)
         rows = list(__import__("csv").DictReader(open(path, encoding="utf-8")))
         assert float(rows[-1]["period_points"]) == 35.0
 
