@@ -215,6 +215,13 @@ internal sealed class AgentTcpClient : IDisposable
         return latest is not null;
     }
 
+    private void ClearInboundActions()
+    {
+        while (inbound.TryDequeue(out _))
+        {
+        }
+    }
+
     public void Dispose()
     {
         cancellation.Cancel();
@@ -263,10 +270,12 @@ internal sealed class AgentTcpClient : IDisposable
             }
             catch (SocketException)
             {
+                ClearInboundActions();
                 workAvailable.WaitOne(500);
             }
             catch (IOException)
             {
+                ClearInboundActions();
                 workAvailable.WaitOne(500);
             }
         }

@@ -4,6 +4,9 @@ from collections import defaultdict
 
 
 def plot_metrics(path: str, output: str) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     series: dict[str, list[tuple[int, float]]] = defaultdict(list)
@@ -12,17 +15,20 @@ def plot_metrics(path: str, output: str) -> None:
             label = "overall" if row["scope"] == "overall" else f"weapon {row['weapon_id']}"
             series[label].append((int(row["period_index"]), float(row["period_points"])))
 
+    figure, axes = plt.subplots()
     for label, points in sorted(series.items()):
         points.sort()
         x_values, y_values = zip(*points)
-        plt.plot(x_values, y_values, marker=".", label=label)
-    plt.xlabel("Ten-minute period")
-    plt.ylabel("Points earned in period")
-    plt.title("Terraria combat training progress")
-    plt.grid(True, alpha=0.25)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output, dpi=160)
+        axes.plot(x_values, y_values, marker=".", label=label)
+    axes.set_xlabel("Ten-minute period")
+    axes.set_ylabel("Points earned in period")
+    axes.set_title("Terraria combat training progress")
+    axes.grid(True, alpha=0.25)
+    if series:
+        axes.legend()
+    figure.tight_layout()
+    figure.savefig(output, dpi=160)
+    plt.close(figure)
 
 
 if __name__ == "__main__":

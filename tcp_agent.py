@@ -373,13 +373,16 @@ class MeleeAgentSession:
 class AgentRequestHandler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         session: MeleeAgentSession = self.server.session  # type: ignore[attr-defined]
-        for raw_line in self.rfile:
-            if not raw_line.strip():
-                continue
-            observation = json.loads(raw_line)
-            action = session.process_observation(observation)
-            self.wfile.write((json.dumps(action) + "\n").encode("utf-8"))
-            self.wfile.flush()
+        try:
+            for raw_line in self.rfile:
+                if not raw_line.strip():
+                    continue
+                observation = json.loads(raw_line)
+                action = session.process_observation(observation)
+                self.wfile.write((json.dumps(action) + "\n").encode("utf-8"))
+                self.wfile.flush()
+        except (ConnectionResetError, BrokenPipeError):
+            pass
 
 
 class AgentTcpServer(socketserver.ThreadingTCPServer):
