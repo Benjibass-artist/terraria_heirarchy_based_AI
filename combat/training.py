@@ -33,12 +33,13 @@ class WeaponTrainingManager:
         checkpoint_directory: str | Path = "checkpoints",
         scheduler: WeaponTrainingScheduler | None = None,
         metrics_path: str | Path = "training_metrics.csv",
+        metrics_plot_path: str | Path = "training_progress.png",
         metrics_period_steps: int = 36_000,
     ) -> None:
         self.trainer = trainer
         self.scheduler = scheduler or WeaponTrainingScheduler()
         self.checkpoints = WeaponCheckpointStore(checkpoint_directory)
-        self.metrics = TrainingMetricsLogger(metrics_path)
+        self.metrics = TrainingMetricsLogger(metrics_path, metrics_plot_path)
         self.metrics_period_steps = metrics_period_steps
         self.state = TrainingState()
         self.weapon_points: dict[int, float] = {}

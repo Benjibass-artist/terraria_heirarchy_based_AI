@@ -14,8 +14,13 @@ class TrainingMetricsLogger:
         "period_points",
     )
 
-    def __init__(self, path: str | Path = "training_metrics.csv") -> None:
+    def __init__(
+        self,
+        path: str | Path = "training_metrics.csv",
+        plot_path: str | Path = "training_progress.png",
+    ) -> None:
         self.path = Path(path)
+        self.plot_path = Path(plot_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists():
             with self.path.open("w", newline="", encoding="utf-8") as file:
@@ -60,6 +65,7 @@ class TrainingMetricsLogger:
         )
         self.weapon_cumulative[weapon_id] = cumulative_points
         self.weapon_periods[weapon_id] = period_index + 1
+        self._refresh_plot()
 
     def record_overall_period(self, global_step: int, cumulative_points: float) -> None:
         period_points = cumulative_points - self.overall_cumulative
@@ -73,6 +79,15 @@ class TrainingMetricsLogger:
         )
         self.overall_cumulative = cumulative_points
         self.overall_period += 1
+        self._refresh_plot()
+
+    def _refresh_plot(self) -> None:
+        try:
+            from plot_training import plot_metrics
+
+            plot_metrics(str(self.path), str(self.plot_path))
+        except ImportError:
+            pass
 
     def _append(
         self,

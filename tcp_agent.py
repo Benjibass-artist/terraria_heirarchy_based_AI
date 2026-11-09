@@ -45,6 +45,7 @@ class MeleeAgentSession:
         rollout_size: int = 2048,
         checkpoint_updates: int = 10,
         metrics_path: str | Path = "training_metrics.csv",
+        metrics_plot_path: str | Path = "training_progress.png",
         cycle_hotbar: bool = False,
         weapon_phase_ticks: int = 1800,
     ) -> None:
@@ -55,6 +56,7 @@ class MeleeAgentSession:
         self.training_manager = WeaponTrainingManager(
             self.trainer,
             metrics_path=metrics_path,
+            metrics_plot_path=metrics_plot_path,
         )
         if checkpoint is not None:
             state = torch.load(checkpoint, map_location=self.device, weights_only=False)
@@ -365,6 +367,7 @@ def run_server(
     cycle_hotbar: bool,
     weapon_phase_ticks: int,
     metrics_path: str,
+    metrics_plot_path: str,
 ) -> None:
     server = socketserver.ThreadingTCPServer((host, port), AgentRequestHandler)
     server.daemon_threads = True
@@ -379,6 +382,7 @@ def run_server(
         cycle_hotbar=cycle_hotbar,
         weapon_phase_ticks=weapon_phase_ticks,
         metrics_path=metrics_path,
+        metrics_plot_path=metrics_plot_path,
     )  # type: ignore[attr-defined]
     mode = "scripted input test" if scripted else ("live PPO training" if train else "policy inference")
     print(f"Melee agent listening on {host}:{port} ({mode})", flush=True)
@@ -403,6 +407,7 @@ if __name__ == "__main__":
     parser.add_argument("--cycle-hotbar", action="store_true")
     parser.add_argument("--weapon-phase-ticks", type=int, default=1800)
     parser.add_argument("--metrics-path", default="training_metrics.csv")
+    parser.add_argument("--metrics-plot-path", default="training_progress.png")
     arguments = parser.parse_args()
     run_server(
         arguments.host,
@@ -417,4 +422,5 @@ if __name__ == "__main__":
         arguments.cycle_hotbar,
         arguments.weapon_phase_ticks,
         arguments.metrics_path,
+        arguments.metrics_plot_path,
     )
