@@ -22,7 +22,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
     ];
     private const int GridWidth = 80;
     private const int GridHeight = 45;
-    private const int MaxActionAge = 15;
+    private const int MaxActionAge = 120;
     private AgentAction currentAction = new();
     private int actionAge = MaxActionAge;
     private bool wasAlive = true;

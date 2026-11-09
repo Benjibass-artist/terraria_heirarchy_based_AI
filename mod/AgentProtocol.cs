@@ -196,6 +196,9 @@ internal sealed class AgentTcpClient : IDisposable
 
     public void Send(CombatObservation observation)
     {
+        while (outbound.TryDequeue(out _))
+        {
+        }
         outbound.Enqueue(JsonSerializer.Serialize(observation, JsonOptions));
         workAvailable.Set();
     }
