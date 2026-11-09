@@ -12,7 +12,9 @@ from combat import (
     CombatObservationSpec,
     CombatRewardEvent,
     MeleeCombatPolicy,
+    PPOTrainer,
     RolloutBuffer,
+    WeaponTrainingManager,
     compute_combat_reward,
 )
 
@@ -39,15 +41,24 @@ class MeleeAgentSession:
         device: str = "cpu",
         scripted: bool = False,
         scripted_phase_ticks: int = 300,
+        train: bool = False,
+        rollout_size: int = 2048,
+        checkpoint_updates: int = 10,
     ) -> None:
         self.spec = CombatObservationSpec()
         self.device = torch.device(device)
         self.policy = MeleeCombatPolicy(self.spec).to(self.device)
+        self.trainer = PPOTrainer(self.policy)
+        self.training_manager = WeaponTrainingManager(self.trainer)
         if checkpoint is not None:
             state = torch.load(checkpoint, map_location=self.device, weights_only=True)
-            self.policy.load_state_dict(state)
+            self.policy.load_state_dict(state.get("policy_state", state))
         self.policy.eval()
         self.scripted = scripted
+        self.train = train and not scripted
+        self.rollout_size = rollout_size
+        self.checkpoint_updates = checkpoint_updates
+        self.update_count = 0
         self.scripted_phase_ticks = scripted_phase_ticks
         self.scripted_tick = 0
         self.hidden_state: torch.Tensor | None = None
@@ -93,6 +104,13 @@ class MeleeAgentSession:
             })
             self.pending = None
 
+        weapon_changed = self.training_manager.observe_weapon(
+            int(weapon_type_id[0].item()),
+            steps=1,
+        )
+        if weapon_changed and self.training_manager.state.global_steps > 1:
+            self.training_manager.save({"reason": "weapon_change"})
+
         if not is_alive:
             self.hidden_state = None
             return self._no_op()
@@ -107,6 +125,17 @@ class MeleeAgentSession:
                 enemy_features=enemy_features,
                 weapon_type_id=weapon_type_id,
             )
+
+        if self.train and len(self.rollout_buffer) >= self.rollout_size:
+            batch = self.rollout_buffer.to_batch(last_value=value.detach())
+            self.policy.train()
+            metrics = self.training_manager.update(batch)
+            self.policy.eval()
+            self.rollout_buffer.clear()
+            self.hidden_state = None
+            self.update_count += 1
+            if self.update_count % self.checkpoint_updates == 0:
+                self.training_manager.save(metrics)
 
         self.pending = PendingTransition(
             grid=grid,
@@ -161,6 +190,11 @@ class MeleeAgentSession:
 
     def clear_rollout(self) -> None:
         self.rollout_buffer.clear()
+
+    def save_training_checkpoint(self) -> Path | None:
+        if not self.train or self.training_manager.state.active_weapon_id is None:
+            return None
+        return self.training_manager.save({"reason": "session_stop"})
 
     def _encode_observation(
         self, observation: dict[str, Any]
@@ -275,6 +309,9 @@ def run_server(
     device: str,
     scripted: bool,
     scripted_phase_ticks: int,
+    train: bool,
+    rollout_size: int,
+    checkpoint_updates: int,
 ) -> None:
     server = socketserver.ThreadingTCPServer((host, port), AgentRequestHandler)
     server.daemon_threads = True
@@ -283,12 +320,16 @@ def run_server(
         device=device,
         scripted=scripted,
         scripted_phase_ticks=scripted_phase_ticks,
+        train=train,
+        rollout_size=rollout_size,
+        checkpoint_updates=checkpoint_updates,
     )  # type: ignore[attr-defined]
-    mode = "scripted input test" if scripted else "policy inference"
+    mode = "scripted input test" if scripted else ("live PPO training" if train else "policy inference")
     print(f"Melee agent listening on {host}:{port} ({mode})", flush=True)
     try:
         server.serve_forever()
     finally:
+        server.session.save_training_checkpoint()  # type: ignore[attr-defined]
         server.server_close()
 
 
@@ -300,6 +341,9 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--scripted", action="store_true")
     parser.add_argument("--scripted-phase-ticks", type=int, default=300)
+    parser.add_argument("--train", action="store_true")
+    parser.add_argument("--rollout-size", type=int, default=2048)
+    parser.add_argument("--checkpoint-updates", type=int, default=10)
     arguments = parser.parse_args()
     run_server(
         arguments.host,
@@ -308,4 +352,7 @@ if __name__ == "__main__":
         arguments.device,
         arguments.scripted,
         arguments.scripted_phase_ticks,
+        arguments.train,
+        arguments.rollout_size,
+        arguments.checkpoint_updates,
     )
