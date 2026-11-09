@@ -45,6 +45,12 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
+        if (!Main.instance.IsActive)
+        {
+            ClearAgentControls();
+            return;
+        }
+
         if (TerrariaAgent.Client?.TryGetAction(out AgentAction? action) == true)
         {
             currentAction = action;
@@ -66,6 +72,11 @@ public sealed class TerrariaAgentPlayer : ModPlayer
     public override void PostUpdate()
     {
         if (Main.gameMenu || Main.LocalPlayer != Player)
+        {
+            return;
+        }
+
+        if (!Main.instance.IsActive)
         {
             return;
         }
@@ -92,6 +103,15 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         attackAttemptedThisTick = false;
         attackHitThisTick = false;
         enemiesKilledThisTick = 0;
+    }
+
+    private void ClearAgentControls()
+    {
+        Player.controlLeft = false;
+        Player.controlRight = false;
+        Player.controlJump = false;
+        Player.controlDown = false;
+        Player.controlUseItem = false;
     }
 
     private CombatObservation BuildObservation()

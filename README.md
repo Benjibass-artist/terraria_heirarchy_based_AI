@@ -31,7 +31,7 @@ For the first in-game control test, use scripted actions instead of the untraine
 python tcp_agent.py --scripted
 ```
 
-The scripted cycle tests right, right+jump, left+jump, down+left, and attack. Stop it with `Ctrl+C` before switching to policy inference.
+The scripted cycle tests right, right+jump, left+jump, down+left, and attack. Each phase lasts five seconds by default. Use `--scripted-phase-ticks 600` for ten-second phases. The mod also pauses AI controls and stops sending observations while the Terraria window is unfocused.
 
 The reward module uses the requested values:
 
