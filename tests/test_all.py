@@ -2,6 +2,7 @@ import json
 import socket
 import socketserver
 import threading
+import tempfile
 
 import torch
 
@@ -13,6 +14,7 @@ from combat import (
     PPOConfig,
     PPOTrainer,
     compute_combat_reward,
+    WeaponCheckpointStore,
 )
 from combat.rollout import RolloutBuffer
 from tcp_agent import AgentRequestHandler, MeleeAgentSession
@@ -121,8 +123,25 @@ def test_tcp_protocol() -> None:
     assert -1 <= action["aim_y"] <= 1
 
 
+def test_append_only_weapon_checkpoints() -> None:
+    spec = CombatObservationSpec()
+    policy = MeleeCombatPolicy(spec)
+    with tempfile.TemporaryDirectory() as directory:
+        store = WeaponCheckpointStore(directory)
+        first = store.save(policy, weapon_id=42, training_steps=100)
+        second = store.save(policy, weapon_id=42, training_steps=200)
+        assert first != second
+        assert first.exists()
+        assert second.exists()
+        assert store.latest(42) == second
+        payload = store.load_latest(policy, weapon_id=42)
+        assert payload is not None
+        assert payload["training_steps"] == 200
+
+
 if __name__ == "__main__":
     test_model_and_rewards()
     test_ppo_and_rollout()
     test_tcp_protocol()
+    test_append_only_weapon_checkpoints()
     print("all tests passed")
