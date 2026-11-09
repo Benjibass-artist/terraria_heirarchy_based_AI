@@ -354,6 +354,10 @@ class AgentRequestHandler(socketserver.StreamRequestHandler):
             self.wfile.flush()
 
 
+class AgentTcpServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+
 def run_server(
     host: str,
     port: int,
@@ -369,7 +373,12 @@ def run_server(
     metrics_path: str,
     metrics_plot_path: str,
 ) -> None:
-    server = socketserver.ThreadingTCPServer((host, port), AgentRequestHandler)
+    try:
+        server = AgentTcpServer((host, port), AgentRequestHandler)
+    except OSError as error:
+        raise RuntimeError(
+            f"Could not listen on {host}:{port}. Stop the old bridge or use --port with another port."
+        ) from error
     server.daemon_threads = True
     server.session = MeleeAgentSession(
         checkpoint=checkpoint,
