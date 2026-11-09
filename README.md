@@ -15,7 +15,7 @@ Initial melee-combat foundation for a Terraria AI written in PyTorch.
 
 The external `WeaponTrainingScheduler` rotates all ten hotbar slots by training steps. At 60 observations per second, its default 324,000-step interval is approximately 1.5 hours. It wraps from slot 9 back to slot 0. It is orchestration code, not part of the neural network, so normal gameplay can use only one to three weapons without changing the policy.
 
-`TrainingMetricsLogger` appends ten-minute weapon and overall point periods to `training_metrics.csv` and refreshes `training_progress.png` after each completed period. Re-training a weapon creates new period rows; earlier rows are never deleted. You can also manually regenerate the image with `python plot_training.py`.
+`TrainingMetricsLogger` appends ten-minute weapon and overall point periods to `training_metrics.csv` and refreshes the combined `training_progress.png` plus one named graph per weapon in `training_progress_weapons/`. Each weapon graph has period reward and cumulative reward panels. Re-training a weapon adds new points without deleting earlier history. You can manually regenerate the graphs with `python plot_training.py`.
 
 Periodic checkpoints default to every 60 PPO updates, plus saves on weapon changes and clean shutdown. Older random-named checkpoints are preserved; new checkpoints include the weapon name.
 

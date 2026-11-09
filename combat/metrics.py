@@ -19,9 +19,15 @@ class TrainingMetricsLogger:
         self,
         path: str | Path = "training_metrics.csv",
         plot_path: str | Path = "training_progress.png",
+        weapon_plot_directory: str | Path | None = None,
     ) -> None:
         self.path = Path(path)
         self.plot_path = Path(plot_path)
+        self.weapon_plot_directory = Path(
+            weapon_plot_directory
+            if weapon_plot_directory is not None
+            else self.plot_path.with_name(f"{self.plot_path.stem}_weapons")
+        )
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists():
             with self.path.open("w", newline="", encoding="utf-8") as file:
@@ -107,9 +113,10 @@ class TrainingMetricsLogger:
 
     def _refresh_plot(self) -> None:
         try:
-            from plot_training import plot_metrics
+            from plot_training import plot_metrics, plot_weapon_metrics
 
             plot_metrics(str(self.path), str(self.plot_path))
+            plot_weapon_metrics(str(self.path), str(self.weapon_plot_directory))
         except ImportError:
             pass
 

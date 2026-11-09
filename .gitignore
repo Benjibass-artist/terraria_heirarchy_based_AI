@@ -6,6 +6,7 @@ venv/
 checkpoints/
 training_metrics.csv
 training_progress.png
+training_progress_weapons/
 *.pt
 *.pth
 *.safetensors
