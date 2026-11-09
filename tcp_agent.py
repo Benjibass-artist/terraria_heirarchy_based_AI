@@ -51,8 +51,16 @@ class MeleeAgentSession:
         self.trainer = PPOTrainer(self.policy)
         self.training_manager = WeaponTrainingManager(self.trainer)
         if checkpoint is not None:
-            state = torch.load(checkpoint, map_location=self.device, weights_only=True)
+            state = torch.load(checkpoint, map_location=self.device, weights_only=False)
             self.policy.load_state_dict(state.get("policy_state", state))
+            if "optimizer_state" in state:
+                self.trainer.optimizer.load_state_dict(state["optimizer_state"])
+            if "weapon_id" in state:
+                self.training_manager.state.active_weapon_id = int(state["weapon_id"])
+                self.training_manager.state.global_steps = int(state.get("training_steps", 0))
+                self.training_manager.state.weapon_steps[int(state["weapon_id"])] = int(
+                    state.get("training_steps", 0)
+                )
         self.policy.eval()
         self.scripted = scripted
         self.train = train and not scripted
