@@ -125,6 +125,11 @@ class MeleeAgentSession:
             steps=1,
         )
         self.training_manager.record_reward(reward)
+        scheduled_switch = (
+            self.training_manager.switch_if_due(1)
+            if self.train
+            else None
+        )
         if weapon_changed and self.training_manager.state.global_steps > 1:
             self.training_manager.save({"reason": "weapon_change"})
 
@@ -165,7 +170,10 @@ class MeleeAgentSession:
             log_probability=log_probability,
             value=value,
         )
-        return self._decode_action(actions[0])
+        action = self._decode_action(actions[0])
+        if scheduled_switch is not None:
+            action["hotbar_slot"] = self.training_manager.scheduler.current_slot
+        return action
 
     def _scripted_action(self) -> dict[str, Any]:
         cycle = self.scripted_tick // self.scripted_phase_ticks
