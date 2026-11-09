@@ -105,6 +105,18 @@ public sealed class EnemyObservation
     [JsonPropertyName("health_fraction")]
     public float HealthFraction { get; set; }
 
+    [JsonPropertyName("current_life")]
+    public int CurrentLife { get; set; }
+
+    [JsonPropertyName("max_life")]
+    public int MaxLife { get; set; }
+
+    [JsonPropertyName("damage")]
+    public int Damage { get; set; }
+
+    [JsonPropertyName("defense")]
+    public int Defense { get; set; }
+
     [JsonPropertyName("line_of_sight")]
     public float LineOfSight { get; set; }
 

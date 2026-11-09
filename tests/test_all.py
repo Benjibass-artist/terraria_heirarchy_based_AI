@@ -15,6 +15,8 @@ from combat import (
     PPOTrainer,
     compute_combat_reward,
     WeaponCheckpointStore,
+    WeaponScheduleConfig,
+    WeaponTrainingScheduler,
 )
 from combat.rollout import RolloutBuffer
 from tcp_agent import AgentRequestHandler, MeleeAgentSession
@@ -137,6 +139,17 @@ def test_append_only_weapon_checkpoints() -> None:
         payload = store.load_latest(policy, weapon_id=42)
         assert payload is not None
         assert payload["training_steps"] == 200
+
+
+def test_external_weapon_scheduler() -> None:
+    scheduler = WeaponTrainingScheduler(
+        WeaponScheduleConfig(hotbar_slots=(0, 1, 2), switch_interval_steps=10)
+    )
+    assert scheduler.current_slot == 0
+    assert scheduler.advance(9) is None
+    switch = scheduler.advance(1)
+    assert switch is not None
+    assert (switch.previous_slot, switch.next_slot) == (0, 1)
 
 
 if __name__ == "__main__":

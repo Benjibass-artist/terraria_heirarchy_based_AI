@@ -17,7 +17,7 @@ class CombatObservationSpec:
     weapon_type_count: int = 512
     weapon_embedding_size: int = 8
     enemy_slots: int = 32
-    enemy_features: int = 9
+    enemy_features: int = 13
     hidden_size: int = 256
     gru_layers: int = 1
     movement_action_count: int = 5

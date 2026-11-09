@@ -4,6 +4,7 @@ from .reward import CombatRewardConfig, CombatRewardEvent, compute_combat_reward
 from .rollout import RolloutBuffer, RolloutConfig
 from .replay import ReplayBuffer, WeaponReplayMixer
 from .checkpoints import WeaponCheckpointStore
+from .scheduler import WeaponScheduleConfig, WeaponSwitch, WeaponTrainingScheduler
 
 __all__ = [
 	"CombatObservationSpec",
@@ -16,6 +17,9 @@ __all__ = [
 	"ReplayBuffer",
 	"WeaponReplayMixer",
 	"WeaponCheckpointStore",
+	"WeaponScheduleConfig",
+	"WeaponSwitch",
+	"WeaponTrainingScheduler",
 	"CombatRewardConfig",
 	"CombatRewardEvent",
 	"compute_combat_reward",
