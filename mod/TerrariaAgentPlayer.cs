@@ -48,7 +48,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
-        if (!Main.instance.IsActive)
+        if (ModContent.GetInstance<TerrariaAgentConfig>().PauseWhenUnfocused && !Main.instance.IsActive)
         {
             ClearAgentControls();
             return;
@@ -118,7 +118,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
-        if (!Main.instance.IsActive)
+        if (ModContent.GetInstance<TerrariaAgentConfig>().PauseWhenUnfocused && !Main.instance.IsActive)
         {
             return;
         }
