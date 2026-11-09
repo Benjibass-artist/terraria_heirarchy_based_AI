@@ -175,6 +175,7 @@ class MeleeAgentSession:
         action = self._decode_action(actions[0])
         if scheduled_switch is not None:
             action["hotbar_slot"] = self.training_manager.scheduler.current_slot
+            action["hotbar_control"] = True
         return action
 
     def _scripted_action(self) -> dict[str, Any]:
@@ -197,6 +198,7 @@ class MeleeAgentSession:
             "auto_aim": auto_aim,
             "target_slot": 0,
             "hotbar_slot": hotbar_slot,
+            "hotbar_control": self.cycle_hotbar,
         }
         if phase == 0:
             action["right"] = True
@@ -312,7 +314,6 @@ class MeleeAgentSession:
         auto_aim_index = 7
         target_start = auto_aim_index + 1
         target_end = target_start + self.spec.target_action_count
-        hotbar_end = target_end + self.spec.hotbar_action_count
         return {
             "left": movement[0],
             "right": movement[1],
@@ -323,7 +324,7 @@ class MeleeAgentSession:
             "aim_y": float(aim[1].item()),
             "auto_aim": bool(action[auto_aim_index].item() >= 0.5),
             "target_slot": int(action[target_start:target_end].argmax().item()),
-            "hotbar_slot": int(action[target_end:hotbar_end].argmax().item()),
+            "hotbar_control": False,
         }
 
     @staticmethod
@@ -338,7 +339,7 @@ class MeleeAgentSession:
             "aim_y": 0.0,
             "auto_aim": False,
             "target_slot": 0,
-            "hotbar_slot": 0,
+            "hotbar_control": False,
         }
 
 

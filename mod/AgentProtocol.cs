@@ -41,6 +41,9 @@ public sealed class AgentAction
 
     [JsonPropertyName("hotbar_slot")]
     public int HotbarSlot { get; set; }
+
+    [JsonPropertyName("hotbar_control")]
+    public bool HotbarControl { get; set; }
 }
 
 public sealed class CombatObservation

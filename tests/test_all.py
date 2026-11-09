@@ -38,7 +38,7 @@ def test_model_and_rewards() -> None:
     )
     assert actions.shape == (
         2,
-        spec.movement_action_count + spec.aim_vector_size + spec.auto_aim_action_count + spec.target_action_count + spec.hotbar_action_count,
+        spec.movement_action_count + spec.aim_vector_size + spec.auto_aim_action_count + spec.target_action_count,
     )
     assert log_probs.shape == (2,)
     assert values.shape == (2,)
@@ -124,7 +124,7 @@ def test_tcp_protocol() -> None:
     thread.join(timeout=1)
     assert set(action) == {
         "left", "right", "jump", "down", "attack", "aim_x", "aim_y",
-        "auto_aim", "target_slot", "hotbar_slot",
+        "auto_aim", "target_slot", "hotbar_control",
     }
     assert -1 <= action["aim_x"] <= 1
     assert -1 <= action["aim_y"] <= 1

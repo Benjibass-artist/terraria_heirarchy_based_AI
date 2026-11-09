@@ -24,7 +24,6 @@ class CombatObservationSpec:
     aim_vector_size: int = 2
     auto_aim_action_count: int = 1
     target_action_count: int = 32
-    hotbar_action_count: int = 10
 
 
 class MeleeCombatPolicy(nn.Module):
@@ -96,7 +95,6 @@ class MeleeCombatPolicy(nn.Module):
         self.aim_log_std = nn.Parameter(torch.full((self.spec.aim_vector_size,), -1.0))
         self.auto_aim_head = nn.Linear(self.spec.hidden_size, self.spec.auto_aim_action_count)
         self.target_head = nn.Linear(self.spec.hidden_size, self.spec.target_action_count)
-        self.hotbar_head = nn.Linear(self.spec.hidden_size, self.spec.hotbar_action_count)
         self.value_head = nn.Linear(self.spec.hidden_size, 1)
 
     def forward(
@@ -139,8 +137,7 @@ class MeleeCombatPolicy(nn.Module):
         aim_logits = self.aim_head(recurrent_features)
         auto_aim_logits = self.auto_aim_head(recurrent_features)
         target_logits = self.target_head(recurrent_features)
-        hotbar_logits = self.hotbar_head(recurrent_features)
-        logits = torch.cat((movement_logits, aim_logits, auto_aim_logits, target_logits, hotbar_logits), dim=-1)
+        logits = torch.cat((movement_logits, aim_logits, auto_aim_logits, target_logits), dim=-1)
         values = self.value_head(recurrent_features).squeeze(-1)
 
         if was_single_step:
@@ -176,12 +173,10 @@ class MeleeCombatPolicy(nn.Module):
         auto_aim_logits = logits[..., aim_end:auto_aim_end]
         target_end = auto_aim_end + self.spec.target_action_count
         target_logits = logits[..., auto_aim_end:target_end]
-        hotbar_logits = logits[..., target_end:]
         movement_distribution = Bernoulli(logits=movement_logits)
         aim_distribution = torch.distributions.Normal(aim_logits, self.aim_log_std.exp())
         auto_aim_distribution = Bernoulli(logits=auto_aim_logits)
         target_distribution = torch.distributions.Categorical(logits=target_logits)
-        hotbar_distribution = torch.distributions.Categorical(logits=hotbar_logits)
         movement_actions = (
             (movement_logits >= 0).to(dtype=torch.float32)
             if deterministic
@@ -201,17 +196,12 @@ class MeleeCombatPolicy(nn.Module):
         target_actions = torch.nn.functional.one_hot(
             target_index, num_classes=self.spec.target_action_count
         ).to(dtype=torch.float32)
-        hotbar_index = hotbar_logits.argmax(dim=-1) if deterministic else hotbar_distribution.sample()
-        hotbar_actions = torch.nn.functional.one_hot(
-            hotbar_index, num_classes=self.spec.hotbar_action_count
-        ).to(dtype=torch.float32)
-        actions = torch.cat((movement_actions, aim_actions, auto_aim_actions, target_actions, hotbar_actions), dim=-1)
+        actions = torch.cat((movement_actions, aim_actions, auto_aim_actions, target_actions), dim=-1)
         log_probabilities = (
             movement_distribution.log_prob(movement_actions).sum(dim=-1)
             + aim_log_probability
             + auto_aim_distribution.log_prob(auto_aim_actions).sum(dim=-1)
             + target_distribution.log_prob(target_index)
-            + hotbar_distribution.log_prob(hotbar_index)
         )
         return actions, log_probabilities, values, next_hidden
 
@@ -225,17 +215,14 @@ class MeleeCombatPolicy(nn.Module):
         auto_aim_logits = logits[..., aim_end:auto_aim_end]
         target_end = auto_aim_end + self.spec.target_action_count
         target_logits = logits[..., auto_aim_end:target_end]
-        hotbar_logits = logits[..., target_end:]
         movement_actions = actions[..., :self.spec.movement_action_count]
         aim_actions = actions[..., aim_start:aim_end]
         auto_aim_actions = actions[..., aim_end:auto_aim_end]
         target_actions = actions[..., auto_aim_end:target_end]
-        hotbar_actions = actions[..., target_end:]
         movement_distribution = Bernoulli(logits=movement_logits)
         aim_distribution = torch.distributions.Normal(aim_logits, self.aim_log_std.exp())
         auto_aim_distribution = Bernoulli(logits=auto_aim_logits)
         target_distribution = torch.distributions.Categorical(logits=target_logits)
-        hotbar_distribution = torch.distributions.Categorical(logits=hotbar_logits)
         aim_actions = actions[..., aim_start:aim_end].clamp(-0.999999, 0.999999)
         raw_aim_actions = torch.atanh(aim_actions)
         aim_log_probability = self._squashed_log_probability(
@@ -246,14 +233,12 @@ class MeleeCombatPolicy(nn.Module):
             + aim_log_probability
             + auto_aim_distribution.log_prob(auto_aim_actions).sum(dim=-1)
             + target_distribution.log_prob(target_actions.argmax(dim=-1))
-            + hotbar_distribution.log_prob(hotbar_actions.argmax(dim=-1))
         )
         entropy = (
             movement_distribution.entropy().sum(dim=-1)
             + aim_distribution.entropy().sum(dim=-1)
             + auto_aim_distribution.entropy().sum(dim=-1)
             + target_distribution.entropy()
-            + hotbar_distribution.entropy()
         )
         return log_probabilities, entropy
 

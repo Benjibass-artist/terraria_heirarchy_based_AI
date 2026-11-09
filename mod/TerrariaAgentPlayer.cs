@@ -72,6 +72,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         bool shouldAttack = actionIsFresh && currentAction.Attack && IsCombatItem(Player.HeldItem);
         if (
             actionIsFresh
+            && currentAction.HotbarControl
             && currentAction.HotbarSlot >= 0
             && currentAction.HotbarSlot < 10
             && IsCombatItem(Player.inventory[currentAction.HotbarSlot])
