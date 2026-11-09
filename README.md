@@ -15,6 +15,8 @@ Initial melee-combat foundation for a Terraria AI written in PyTorch.
 
 The external `WeaponTrainingScheduler` rotates all ten hotbar slots by training steps. At 60 observations per second, its default 162,000-step interval is approximately 45 minutes. It is orchestration code, not part of the neural network, so normal gameplay can use only one to three weapons without changing the policy.
 
+`WeaponTrainingManager` keeps the policy shared while tracking the active weapon and per-weapon training progress. It saves before scheduler transitions and loads the newest weapon checkpoint when resuming. Checkpoint files are append-only, so stopping and restarting training does not erase previous progress.
+
 `combat.PPOTrainer` provides the clipped PPO update step. It consumes rollout batches from an environment; the Terraria TCP rollout collector is the next integration layer.
 
 ## Python TCP bridge

@@ -16,6 +16,7 @@ from combat import (
     compute_combat_reward,
     WeaponCheckpointStore,
     WeaponScheduleConfig,
+    WeaponTrainingManager,
     WeaponTrainingScheduler,
 )
 from combat.rollout import RolloutBuffer
@@ -152,9 +153,28 @@ def test_external_weapon_scheduler() -> None:
     assert (switch.previous_slot, switch.next_slot) == (0, 1)
 
 
+def test_weapon_training_manager_persists_shared_policy() -> None:
+    spec = CombatObservationSpec()
+    trainer = PPOTrainer(MeleeCombatPolicy(spec))
+    with tempfile.TemporaryDirectory() as directory:
+        manager = WeaponTrainingManager(trainer, checkpoint_directory=directory)
+        assert manager.observe_weapon(101, steps=20)
+        first = manager.save()
+        assert first.exists()
+        assert manager.observe_weapon(202, steps=10)
+        second = manager.save()
+        assert second.exists()
+        assert first.exists()
+        restored = manager.load_latest_weapon(101)
+        assert restored is not None
+        assert restored["weapon_id"] == 101
+
+
 if __name__ == "__main__":
     test_model_and_rewards()
     test_ppo_and_rollout()
     test_tcp_protocol()
     test_append_only_weapon_checkpoints()
+    test_external_weapon_scheduler()
+    test_weapon_training_manager_persists_shared_policy()
     print("all tests passed")
