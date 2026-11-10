@@ -118,6 +118,30 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         Player.itemRotation = aimDirection.ToRotation();
     }
 
+    public override void PreUpdateMovement()
+    {
+        if (Main.gameMenu || Main.LocalPlayer != Player || Main.instance.IsActive)
+        {
+            return;
+        }
+
+        if (actionAge > MaxActionAge || Player.dead)
+        {
+            return;
+        }
+
+        int horizontalDirection = (currentAction.Right ? 1 : 0) - (currentAction.Left ? 1 : 0);
+        if (horizontalDirection != 0)
+        {
+            Player.velocity.X = horizontalDirection * Math.Max(Player.maxRunSpeed, 3f);
+        }
+
+        if (currentAction.Jump && (Player.velocity.Y == 0f || Player.collideY))
+        {
+            Player.velocity.Y = -Player.jumpSpeed;
+        }
+    }
+
     public override void PostUpdate()
     {
         if (Main.gameMenu || Main.LocalPlayer != Player)
