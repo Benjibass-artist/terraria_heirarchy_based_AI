@@ -7,5 +7,5 @@ public sealed class TerrariaAgentConfig : ModConfig
 {
     public override ConfigScope Mode => ConfigScope.ClientSide;
 
-    public bool PauseWhenUnfocused { get; set; } = true;
+    public bool PauseWhenUnfocused { get; set; } = false;
 }

@@ -68,6 +68,8 @@ The `mod/` directory contains the initial source to copy into a tModLoader mod s
 
 The C# source needs to be built by tModLoader, where the Terraria and XNA reference assemblies are available. It cannot be fully compiled as a standalone C# project from this workspace yet.
 
+Background AI is enabled by default (`PauseWhenUnfocused = false`). Turn that client-side mod setting on to pause AI controls whenever Terraria loses focus.
+
 The model is deliberately shared-policy friendly. Future agents can reuse the observation and encoder contract while adding their own policy heads. Ranged weapons and cursor aiming are outside the first agent's scope. Later melee weapons that emit straight projectiles can be added as weapon descriptors without changing the movement policy.
 
 ## Quick check
