@@ -34,6 +34,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
     private bool attackHitThisTick;
     private bool attackNotReadyThisTick;
     private bool previousAttackRequest;
+    private bool previousBackgroundJumpRequest;
     private int enemiesKilledThisTick;
 
     public override void OnEnterWorld()
@@ -162,14 +163,17 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         float targetHorizontalSpeed = horizontalDirection * Math.Max(Player.maxRunSpeed, 3f);
         Player.velocity.X = MathHelper.Lerp(Player.velocity.X, targetHorizontalSpeed, 0.35f);
 
-        float gravityRelativeVelocity = Player.velocity.Y * Player.gravDir;
-        float groundedVelocityLimit = Player.gravity * 2f + 0.1f;
-        if (
-            currentAction.Jump
-            && gravityRelativeVelocity >= -0.1f
-            && gravityRelativeVelocity <= groundedVelocityLimit
-            && !Player.dead
-        )
+        bool jumpPressed = currentAction.Jump && !previousBackgroundJumpRequest;
+        previousBackgroundJumpRequest = currentAction.Jump;
+        float groundCheckOffset = Player.gravDir >= 0f ? Player.height : -2f;
+        Vector2 groundCheckPosition = Player.position + new Vector2(0f, groundCheckOffset);
+        bool hasGroundSupport = Collision.SolidCollision(
+            groundCheckPosition,
+            Player.width,
+            2,
+            true
+        );
+        if (jumpPressed && hasGroundSupport && !Player.dead)
         {
             Player.jump = Player.jumpHeight;
             Player.velocity.Y = -Player.jumpSpeed * Player.gravDir;
