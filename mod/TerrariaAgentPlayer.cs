@@ -34,7 +34,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
     private bool attackHitThisTick;
     private bool attackNotReadyThisTick;
     private bool previousAttackRequest;
-    private bool previousBackgroundJumpRequest;
     private int enemiesKilledThisTick;
 
     public override void OnEnterWorld()
@@ -51,10 +50,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
-        if (Main.instance.IsActive)
-        {
-            RefreshActionFromBridge();
-        }
+        RefreshActionFromBridge();
 
         bool actionIsFresh = actionAge <= MaxActionAge;
         if (
@@ -117,8 +113,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
-        RefreshActionFromBridge();
-
         if (actionAge > MaxActionAge || Player.dead)
         {
             return;
@@ -130,7 +124,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         bool weaponReady = hasCombatItem && Player.itemTime <= 0 && Player.itemAnimation <= 0;
         Player.controlLeft = actionIsFresh && currentAction.Left;
         Player.controlRight = actionIsFresh && currentAction.Right;
-        Player.controlJump = actionIsFresh && currentAction.Jump;
         Player.controlDown = actionIsFresh && currentAction.Down;
         Player.controlUseItem = attackRequested && weaponReady;
         Player.releaseUseItem = true;
@@ -163,22 +156,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         float targetHorizontalSpeed = horizontalDirection * Math.Max(Player.maxRunSpeed, 3f);
         Player.velocity.X = MathHelper.Lerp(Player.velocity.X, targetHorizontalSpeed, 0.35f);
 
-        bool jumpPressed = currentAction.Jump && !previousBackgroundJumpRequest;
-        previousBackgroundJumpRequest = currentAction.Jump;
-        float groundCheckOffset = Player.gravDir >= 0f ? Player.height : -2f;
-        Vector2 groundCheckPosition = Player.position + new Vector2(0f, groundCheckOffset);
-        bool hasGroundSupport = Collision.SolidCollision(
-            groundCheckPosition,
-            Player.width,
-            2,
-            true
-        );
-        if (jumpPressed && hasGroundSupport && !Player.dead)
-        {
-            Player.jump = Player.jumpHeight;
-            Player.velocity.Y = -Player.jumpSpeed * Player.gravDir;
-            Player.justJumped = true;
-        }
     }
 
     private void RefreshActionFromBridge()
