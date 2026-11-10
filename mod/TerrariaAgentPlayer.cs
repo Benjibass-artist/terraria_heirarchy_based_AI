@@ -151,11 +151,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             Player.direction = aimDirection.X > 0f ? 1 : -1;
         }
         Player.itemRotation = aimDirection.ToRotation();
-
-        int horizontalDirection = (currentAction.Right ? 1 : 0) - (currentAction.Left ? 1 : 0);
-        float targetHorizontalSpeed = horizontalDirection * Math.Max(Player.maxRunSpeed, 3f);
-        Player.velocity.X = MathHelper.Lerp(Player.velocity.X, targetHorizontalSpeed, 0.35f);
-
     }
 
     private void RefreshActionFromBridge()
