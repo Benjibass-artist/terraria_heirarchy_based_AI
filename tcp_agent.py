@@ -4,6 +4,7 @@ import json
 import math
 import socketserver
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -394,16 +395,39 @@ class MeleeAgentSession:
 class AgentRequestHandler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         session: MeleeAgentSession = self.server.session  # type: ignore[attr-defined]
+        print(f"[tcp] client connected: {self.client_address[0]}:{self.client_address[1]}", flush=True)
+        report_started = time.monotonic()
+        observation_count = 0
+        response_ms = 0.0
+        last_action: dict[str, Any] = MeleeAgentSession._no_op()
         try:
             for raw_line in self.rfile:
                 if not raw_line.strip():
                     continue
+                inference_started = time.perf_counter()
                 observation = json.loads(raw_line)
                 action = session.process_observation(observation)
                 self.wfile.write((json.dumps(action) + "\n").encode("utf-8"))
                 self.wfile.flush()
-        except (ConnectionResetError, BrokenPipeError):
-            pass
+                response_ms = (time.perf_counter() - inference_started) * 1000.0
+                observation_count += 1
+                last_action = action
+                now = time.monotonic()
+                if now - report_started >= 1.0:
+                    active = "".join(
+                        name
+                        for name in ("L" if action["left"] else "", "R" if action["right"] else "", "J" if action["jump"] else "", "D" if action["down"] else "", "A" if action["attack"] else "")
+                    ) or "idle"
+                    print(
+                        f"[tcp] observations/s={observation_count} inference_ms={response_ms:.1f} controls={active}",
+                        flush=True,
+                    )
+                    report_started = now
+                    observation_count = 0
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            print("[tcp] client connection reset", flush=True)
+        finally:
+            print(f"[tcp] client disconnected; last controls={last_action}", flush=True)
 
 
 class AgentTcpServer(socketserver.ThreadingTCPServer):
