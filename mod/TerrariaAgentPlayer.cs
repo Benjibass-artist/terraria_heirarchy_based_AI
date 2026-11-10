@@ -50,12 +50,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
-        if (ModContent.GetInstance<TerrariaAgentConfig>().PauseWhenUnfocused && !Main.instance.IsActive)
-        {
-            ClearAgentControls();
-            return;
-        }
-
         if (TerrariaAgent.Client?.TryGetAction(out AgentAction? action) == true)
         {
             currentAction = action;
@@ -131,11 +125,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
-        if (ModContent.GetInstance<TerrariaAgentConfig>().PauseWhenUnfocused && !Main.instance.IsActive)
-        {
-            return;
-        }
-
         if (Player.itemAnimation > previousItemAnimation)
         {
             attackInProgress = true;
@@ -159,17 +148,6 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         attackHitThisTick = false;
         attackNotReadyThisTick = false;
         enemiesKilledThisTick = 0;
-    }
-
-    private void ClearAgentControls()
-    {
-        Player.controlLeft = false;
-        Player.controlRight = false;
-        Player.controlJump = false;
-        Player.controlDown = false;
-        Player.controlUseItem = false;
-        Player.releaseUseItem = true;
-        Player.controlUseTile = false;
     }
 
     private static bool IsCombatItem(Item item)
