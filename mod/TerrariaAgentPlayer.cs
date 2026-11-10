@@ -50,7 +50,10 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
-        RefreshActionFromBridge();
+        if (Main.instance.IsActive)
+        {
+            RefreshActionFromBridge();
+        }
 
         bool actionIsFresh = actionAge <= MaxActionAge;
         if (
@@ -113,6 +116,8 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
+        RefreshActionFromBridge();
+
         if (actionAge > MaxActionAge || Player.dead)
         {
             return;
@@ -124,6 +129,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         bool weaponReady = hasCombatItem && Player.itemTime <= 0 && Player.itemAnimation <= 0;
         Player.controlLeft = actionIsFresh && currentAction.Left;
         Player.controlRight = actionIsFresh && currentAction.Right;
+        Player.controlJump = actionIsFresh && currentAction.Jump;
         Player.controlDown = actionIsFresh && currentAction.Down;
         Player.controlUseItem = attackRequested && weaponReady;
         Player.releaseUseItem = true;
@@ -151,6 +157,11 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             Player.direction = aimDirection.X > 0f ? 1 : -1;
         }
         Player.itemRotation = aimDirection.ToRotation();
+
+        if (Player.controlJump)
+        {
+            Player.JumpMovement();
+        }
     }
 
     private void RefreshActionFromBridge()
