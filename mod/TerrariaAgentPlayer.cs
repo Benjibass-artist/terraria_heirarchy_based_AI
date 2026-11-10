@@ -50,18 +50,9 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
-        if (TerrariaAgent.Client?.TryGetAction(out AgentAction? action) == true)
+        if (Main.instance.IsActive)
         {
-            currentAction = action;
-            actionAge = 0;
-        }
-        else
-        {
-            actionAge++;
-            if (actionAge > MaxActionAge)
-            {
-                currentAction = new AgentAction();
-            }
+            RefreshActionFromBridge();
         }
 
         bool actionIsFresh = actionAge <= MaxActionAge;
@@ -125,6 +116,8 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
+        RefreshActionFromBridge();
+
         if (actionAge > MaxActionAge || Player.dead)
         {
             return;
@@ -174,6 +167,23 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         if (currentAction.Jump && Player.velocity.Y == 0f)
         {
             Player.velocity.Y = -Player.jumpSpeed;
+        }
+    }
+
+    private void RefreshActionFromBridge()
+    {
+        if (TerrariaAgent.Client?.TryGetAction(out AgentAction? action) == true)
+        {
+            currentAction = action;
+            actionAge = 0;
+            return;
+        }
+
+        actionAge++;
+        if (actionAge > MaxActionAge)
+        {
+            currentAction = new AgentAction();
+            previousAttackRequest = false;
         }
     }
 
