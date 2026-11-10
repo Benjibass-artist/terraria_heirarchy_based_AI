@@ -186,11 +186,12 @@ internal sealed class AgentTcpClient : IDisposable
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string host;
     private readonly int port;
-    private readonly ConcurrentQueue<string> outbound = new();
+    private readonly object outboundLock = new();
     private readonly ConcurrentQueue<AgentAction> inbound = new();
     private readonly AutoResetEvent workAvailable = new(false);
     private readonly CancellationTokenSource cancellation = new();
     private readonly Thread worker;
+    private string? latestOutbound;
 
     public AgentTcpClient(string host, int port)
     {
@@ -202,10 +203,11 @@ internal sealed class AgentTcpClient : IDisposable
 
     public void Send(CombatObservation observation)
     {
-        while (outbound.TryDequeue(out _))
+        string serialized = JsonSerializer.Serialize(observation, JsonOptions);
+        lock (outboundLock)
         {
+            latestOutbound = serialized;
         }
-        outbound.Enqueue(JsonSerializer.Serialize(observation, JsonOptions));
         workAvailable.Set();
     }
 
@@ -255,22 +257,30 @@ internal sealed class AgentTcpClient : IDisposable
 
                 while (!cancellation.IsCancellationRequested && tcpClient.Connected)
                 {
-                    while (outbound.TryDequeue(out string? message))
+                    string? message;
+                    lock (outboundLock)
                     {
-                        writer.WriteLine(message);
+                        message = latestOutbound;
+                        latestOutbound = null;
                     }
 
-                    if (stream.DataAvailable && reader.ReadLine() is string response)
+                    if (message is null)
                     {
-                        AgentAction? action = JsonSerializer.Deserialize<AgentAction>(response, JsonOptions);
-                        if (action is not null)
-                        {
-                            inbound.Enqueue(action);
-                        }
+                        workAvailable.WaitOne(50);
+                        continue;
                     }
-                    else
+
+                    writer.WriteLine(message);
+                    string? response = reader.ReadLine();
+                    if (response is null)
                     {
-                        workAvailable.WaitOne(10);
+                        break;
+                    }
+
+                    AgentAction? action = JsonSerializer.Deserialize<AgentAction>(response, JsonOptions);
+                    if (action is not null)
+                    {
+                        inbound.Enqueue(action);
                     }
                 }
             }
