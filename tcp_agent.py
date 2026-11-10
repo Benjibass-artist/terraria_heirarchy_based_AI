@@ -4,6 +4,7 @@ import json
 import math
 import socketserver
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,6 +93,9 @@ class MeleeAgentSession:
         self.training_future: Future[dict[str, float]] | None = None
         self.training_lock = threading.Lock()
         self.training_error: Exception | None = None
+        self.observations_received = 0
+        self.reward_events_received = 0
+        self.reward_total = 0.0
 
     def process_observation(self, observation: dict[str, Any]) -> dict[str, Any]:
         if self.scripted:
@@ -130,6 +134,10 @@ class MeleeAgentSession:
                 is_alive=observation.get("is_alive", True),
             )
         )
+        self.observations_received += 1
+        self.reward_total += reward
+        if reward != 0.0:
+            self.reward_events_received += 1
         is_alive = bool(observation.get("is_alive", True))
         just_respawned = not bool(observation.get("was_alive", True)) and is_alive
 
@@ -394,6 +402,10 @@ class MeleeAgentSession:
 class AgentRequestHandler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         session: MeleeAgentSession = self.server.session  # type: ignore[attr-defined]
+        report_time = time.monotonic()
+        reported_observations = 0
+        reported_reward_events = 0
+        reported_reward_total = 0.0
         try:
             for raw_line in self.rfile:
                 if not raw_line.strip():
@@ -402,6 +414,26 @@ class AgentRequestHandler(socketserver.StreamRequestHandler):
                 action = session.process_observation(observation)
                 self.wfile.write((json.dumps(action) + "\n").encode("utf-8"))
                 self.wfile.flush()
+                now = time.monotonic()
+                if session.train and now - report_time >= 5.0:
+                    observation_delta = session.observations_received - reported_observations
+                    reward_event_delta = session.reward_events_received - reported_reward_events
+                    reward_delta = session.reward_total - reported_reward_total
+                    weapon = session.training_manager.weapon_names.get(
+                        session.training_manager.state.active_weapon_id,
+                        "unknown",
+                    )
+                    print(
+                        f"[training-flow] observations={observation_delta}/5s "
+                        f"reward_events={reward_event_delta} points={reward_delta:.1f} "
+                        f"rollout={len(session.rollout_buffer)}/{session.rollout_size} "
+                        f"ppo_updates={session.update_count} weapon={weapon}",
+                        flush=True,
+                    )
+                    report_time = now
+                    reported_observations = session.observations_received
+                    reported_reward_events = session.reward_events_received
+                    reported_reward_total = session.reward_total
         except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
             pass
 

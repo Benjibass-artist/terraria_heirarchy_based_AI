@@ -150,6 +150,27 @@ def test_tcp_protocol() -> None:
     assert -1 <= action["aim_y"] <= 1
 
 
+def test_next_observation_reward_is_attached_to_previous_action() -> None:
+    session = MeleeAgentSession()
+    grid_size = 80 * 45
+    observation = {
+        "grid_flags": [0] * grid_size,
+        "enemy_type_ids": [0] * grid_size,
+        "player_features": [0.0] * 16,
+        "weapon_features": [0.0] * 16,
+        "weapon_type_id": 7,
+        "weapon_name": "Test Sword",
+        "was_alive": True,
+        "is_alive": True,
+        "enemies": [],
+    }
+    session.process_observation(observation)
+    rewarded_observation = {**observation, "attack_not_ready": True}
+    session.process_observation(rewarded_observation)
+    assert len(session.rollout_buffer) == 1
+    assert session.rollout_buffer.transitions[0]["reward"] == -5.0
+
+
 def test_append_only_weapon_checkpoints() -> None:
     spec = CombatObservationSpec()
     policy = MeleeCombatPolicy(spec)
@@ -214,6 +235,7 @@ if __name__ == "__main__":
     test_policy_can_attempt_attack_during_cooldown_for_reward_learning()
     test_ppo_and_rollout()
     test_tcp_protocol()
+    test_next_observation_reward_is_attached_to_previous_action()
     test_append_only_weapon_checkpoints()
     test_external_weapon_scheduler()
     test_weapon_training_manager_persists_shared_policy()
