@@ -159,14 +159,16 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         Player.itemRotation = aimDirection.ToRotation();
 
         int horizontalDirection = (currentAction.Right ? 1 : 0) - (currentAction.Left ? 1 : 0);
-        if (horizontalDirection != 0)
-        {
-            Player.velocity.X = horizontalDirection * Math.Max(Player.maxRunSpeed, 3f);
-        }
+        float targetHorizontalSpeed = horizontalDirection * Math.Max(Player.maxRunSpeed, 3f);
+        Player.velocity.X = MathHelper.Lerp(Player.velocity.X, targetHorizontalSpeed, 0.35f);
 
-        if (currentAction.Jump && Player.velocity.Y == 0f)
+        if (
+            currentAction.Jump
+            && Math.Abs(Player.velocity.Y) <= 0.1f
+            && !Player.dead
+        )
         {
-            Player.velocity.Y = -Player.jumpSpeed;
+            Player.velocity.Y = -Player.jumpSpeed * Player.gravDir;
         }
     }
 
