@@ -162,13 +162,18 @@ public sealed class TerrariaAgentPlayer : ModPlayer
         float targetHorizontalSpeed = horizontalDirection * Math.Max(Player.maxRunSpeed, 3f);
         Player.velocity.X = MathHelper.Lerp(Player.velocity.X, targetHorizontalSpeed, 0.35f);
 
+        float gravityRelativeVelocity = Player.velocity.Y * Player.gravDir;
+        float groundedVelocityLimit = Player.gravity * 2f + 0.1f;
         if (
             currentAction.Jump
-            && Math.Abs(Player.velocity.Y) <= 0.1f
+            && gravityRelativeVelocity >= -0.1f
+            && gravityRelativeVelocity <= groundedVelocityLimit
             && !Player.dead
         )
         {
+            Player.jump = Player.jumpHeight;
             Player.velocity.Y = -Player.jumpSpeed * Player.gravDir;
+            Player.justJumped = true;
         }
     }
 
