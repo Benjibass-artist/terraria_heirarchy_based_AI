@@ -130,6 +130,41 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             return;
         }
 
+        bool actionIsFresh = actionAge <= MaxActionAge;
+        bool hasCombatItem = IsCombatItem(Player.HeldItem);
+        bool attackRequested = actionIsFresh && currentAction.Attack && hasCombatItem;
+        bool weaponReady = hasCombatItem && Player.itemTime <= 0 && Player.itemAnimation <= 0;
+        Player.controlLeft = actionIsFresh && currentAction.Left;
+        Player.controlRight = actionIsFresh && currentAction.Right;
+        Player.controlJump = actionIsFresh && currentAction.Jump;
+        Player.controlDown = actionIsFresh && currentAction.Down;
+        Player.controlUseItem = attackRequested && weaponReady;
+        Player.releaseUseItem = true;
+        if (Player.controlUseItem)
+        {
+            Player.controlUseTile = false;
+        }
+
+        Vector2 aimDirection = new(currentAction.AimX, currentAction.AimY);
+        if (aimDirection.LengthSquared() < 0.0001f)
+        {
+            aimDirection = Vector2.UnitX * Player.direction;
+        }
+        else
+        {
+            aimDirection.Normalize();
+        }
+        if (currentAction.AutoAim && TryGetTargetDirection(currentAction.TargetSlot, out Vector2 targetDirection))
+        {
+            aimDirection = targetDirection;
+        }
+        SetVirtualCursor(aimDirection);
+        if (aimDirection.X != 0f)
+        {
+            Player.direction = aimDirection.X > 0f ? 1 : -1;
+        }
+        Player.itemRotation = aimDirection.ToRotation();
+
         int horizontalDirection = (currentAction.Right ? 1 : 0) - (currentAction.Left ? 1 : 0);
         if (horizontalDirection != 0)
         {
