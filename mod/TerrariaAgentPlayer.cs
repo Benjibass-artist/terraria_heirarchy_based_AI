@@ -171,7 +171,7 @@ public sealed class TerrariaAgentPlayer : ModPlayer
             Player.velocity.X = horizontalDirection * Math.Max(Player.maxRunSpeed, 3f);
         }
 
-        if (currentAction.Jump && (Player.velocity.Y == 0f || Player.collideY))
+        if (currentAction.Jump && Player.velocity.Y == 0f)
         {
             Player.velocity.Y = -Player.jumpSpeed;
         }
